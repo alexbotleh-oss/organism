@@ -9,8 +9,8 @@ import java.util.*;
 public class Db extends SQLiteOpenHelper {
     private static final int VERSION=2;
     private final Context ctx;
-    public Db(Context c){super(c,"organism.db",null,VERSION);ctx=c;}
-    @Override public void onConfigure(SQLiteDatabase d){d.setForeignKeyConstraintsEnabled(true);d.execSQL("PRAGMA journal_mode=WAL");d.execSQL("PRAGMA busy_timeout=5000");}
+    public Db(Context c){super(c,"organism.db",null,VERSION);ctx=c;setWriteAheadLoggingEnabled(true);}
+    @Override public void onConfigure(SQLiteDatabase d){d.setForeignKeyConstraintsEnabled(true);d.execSQL("PRAGMA busy_timeout=5000");}
     @Override public void onCreate(SQLiteDatabase d){schema(d);seed(d);}
     @Override public void onUpgrade(SQLiteDatabase d,int o,int n){schema(d);migrateLegacy(d);}
     private void schema(SQLiteDatabase d){
@@ -41,7 +41,7 @@ public class Db extends SQLiteOpenHelper {
         d.execSQL("CREATE INDEX IF NOT EXISTS idx_rel_to ON relations(to_object_id)");
     }
     private void migrateLegacy(SQLiteDatabase d){try{Cursor c=d.rawQuery("SELECT role,text FROM messages ORDER BY id ASC",null);while(c.moveToNext())event(c.getString(0).equals("user")?"USER_MESSAGE":"MODEL_OUTPUT",c.getString(1),project("ORGANISM"),0,0,"STATED","NOT_VERIFIED");c.close();}catch(Exception ignored){}try{Cursor c=d.rawQuery("SELECT title,content FROM memories ORDER BY id ASC",null);while(c.moveToNext())memory("NOTE",c.getString(0),c.getString(1),project("ORGANISM"),0,0,"STATED","NOT_VERIFIED",0.5);c.close();}catch(Exception ignored){}try{Cursor c=d.rawQuery("SELECT happened,tried,worked,confidence FROM experiences ORDER BY id ASC",null);while(c.moveToNext())experience(c.getString(0),c.getString(1),c.getString(2),"",project("ORGANISM"),c.getDouble(3),"NEUTRAL","{\"migrated\":true}");c.close();}catch(Exception ignored){}}
-    private void seed(SQLiteDatabase d){String n=now();d.execSQL("INSERT OR IGNORE INTO system_params(key,value,updated_at) VALUES('schema_version','0.3',?)",new Object[]{n});if(queryOne("SELECT id FROM projects WHERE logical_id='PRJ-ORGANISM'",null)==null){ContentValues p=v();p.put("logical_id","PRJ-ORGANISM");p.put("name","ORGANISM");p.put("description","Непрерывный агент");p.put("created_at",n);p.put("updated_at",n);long id=d.insert("projects",null,p);ContentValues s=v();s.put("logical_id","PST-ORGANISM-001");s.put("project_id",id);s.put("branch","main");s.put("summary","Базовое состояние ORGANISM");s.put("created_at",n);d.insert("project_states",null,s);}}
+    private void seed(SQLiteDatabase d){String n=now();d.execSQL("INSERT OR IGNORE INTO system_params(key,value,updated_at) VALUES('schema_version','0.3',?)",new Object[]{n});Cursor existing=d.rawQuery("SELECT id FROM projects WHERE logical_id='PRJ-ORGANISM' LIMIT 1",null);boolean hasProject=existing.moveToFirst();existing.close();if(!hasProject){ContentValues p=v();p.put("logical_id","PRJ-ORGANISM");p.put("name","ORGANISM");p.put("description","Непрерывный агент");p.put("created_at",n);p.put("updated_at",n);long id=d.insert("projects",null,p);ContentValues s=v();s.put("logical_id","PST-ORGANISM-001");s.put("project_id",id);s.put("branch","main");s.put("summary","Базовое состояние ORGANISM");s.put("created_at",n);d.insert("project_states",null,s);}}
     private ContentValues v(){return new ContentValues();}
     public String now(){return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX",Locale.US).format(new Date());}
     public String id(String p){return p+"-"+UUID.randomUUID().toString().substring(0,8).toUpperCase(Locale.US);}
