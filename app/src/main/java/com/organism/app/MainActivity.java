@@ -3,6 +3,7 @@ package com.organism.app;
 import android.app.*;
 import android.os.*;
 import android.content.*;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -10,6 +11,10 @@ import android.util.Base64;
 import android.util.Log;
 import android.view.*;
 import android.widget.*;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import android.speech.RecognitionListener;
+import android.speech.tts.TextToSpeech;
 import java.io.*;
 import java.math.BigInteger;
 import java.net.*;
@@ -33,7 +38,7 @@ public class MainActivity extends Activity {
     static final int CALLBACK_PORT_HINT=1455;
 
     Db db; ImportPipeline importer; ReflexEngine reflex=new ReflexEngine(); ContextEngine contextEngine; ExperienceEngine experienceEngine;
-    LinearLayout root,content; ScrollView pageScroll; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner,providerSpinner; ScrollView chatScroll; ProviderManager providers; String selectedProvider="chatgpt";
+    LinearLayout root,content; ScrollView pageScroll; TextView status,screenTitle,chatView,modelLabel; EditText chatInput; Spinner modelSpinner,providerSpinner; ScrollView chatScroll; ProviderManager providers; String selectedProvider="chatgpt"; SpeechRecognizer speechRecognizer; TextToSpeech textToSpeech; boolean voiceConversation=false; boolean speakResponses=false;
     Handler main=new Handler(Looper.getMainLooper()); boolean busy=false; String screen="home";
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model="",grantedScopes=""; long expiresAt=0;
@@ -130,40 +135,132 @@ public class MainActivity extends Activity {
     void showChat(){
         clear("Чат");
         ensurePageMode(true);
-        card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");
-        card("Исполнитель","ORGANISM — постоянный слой памяти. Ниже выбирается AI-провайдер. Реальный API-вызов сейчас реализован для ChatGPT; веб-провайдеры открываются в браузерной сессии без повторного входа, пока сервис сохраняет сессию.");
-        providerSpinner=new Spinner(this); ArrayList<String> providerNames=new ArrayList<>(); for(ProviderManager.Provider p:providers.all())providerNames.add(p.name); ArrayAdapter<String> pa=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,providerNames);pa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);providerSpinner.setAdapter(pa); providerSpinner.setSelection(0); providerSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(pos>=0&&pos<providers.all().size())selectedProvider=providers.all().get(pos).id;}public void onNothingSelected(android.widget.AdapterView<?>p){}}); content.addView(providerSpinner,new LinearLayout.LayoutParams(-1,-2));
-        card("ChatGPT","Аккаунт: "+getPrefs().getString("email","не определён")+"\nМодель выбирается ниже.");
-        LinearLayout row=new LinearLayout(this);
-        row.addView(tv("Модель",14,Color.DKGRAY),new LinearLayout.LayoutParams(0,-2,.25f));
+
+        LinearLayout controlCard=new LinearLayout(this);
+        controlCard.setOrientation(LinearLayout.VERTICAL);
+        controlCard.setPadding(dp(12),dp(8),dp(12),dp(8));
+        controlCard.setBackground(bg(Color.rgb(18,29,47),18));
+
+        LinearLayout providerRow=new LinearLayout(this);
+        providerRow.setGravity(Gravity.CENTER_VERTICAL);
+        providerRow.addView(tv("ИИ",13,Color.rgb(165,184,211)),new LinearLayout.LayoutParams(dp(34),dp(44)));
+        providerSpinner=new Spinner(this);
+        ArrayList<String> providerNames=new ArrayList<>();
+        for(ProviderManager.Provider p:providers.all())providerNames.add(p.name);
+        ArrayAdapter<String> pa=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,providerNames);
+        pa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        providerSpinner.setAdapter(pa);
+        providerSpinner.setSelection(0);
+        providerSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){
+            public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(pos>=0&&pos<providers.all().size()){selectedProvider=providers.all().get(pos).id;updateChatHeader();}}
+            public void onNothingSelected(android.widget.AdapterView<?>p){}
+        });
+        providerRow.addView(providerSpinner,new LinearLayout.LayoutParams(0,dp(44),1));
+        controlCard.addView(providerRow);
+
+        LinearLayout modelRow=new LinearLayout(this);
+        modelRow.setGravity(Gravity.CENTER_VERTICAL);
+        modelRow.addView(tv("Модель",13,Color.rgb(165,184,211)),new LinearLayout.LayoutParams(dp(60),dp(44)));
         modelSpinner=new Spinner(this);
-        row.addView(modelSpinner,new LinearLayout.LayoutParams(0,-2,.75f));
-        content.addView(row);
+        modelRow.addView(modelSpinner,new LinearLayout.LayoutParams(0,dp(44),1));
+        controlCard.addView(modelRow);
+        modelLabel=tv("Модель: "+(model.isEmpty()?"получение списка…":model),12,Color.rgb(120,225,175));
+        controlCard.addView(modelLabel);
+        controlCard.addView(tv("Я → ORGANISM → выбранный ИИ → ORGANISM → Я",12,Color.rgb(137,157,184)));
+        content.addView(controlCard,new LinearLayout.LayoutParams(-1,-2));
+
         chatScroll=new ScrollView(this);
-        chatView=tv(db.chat(),14,Color.rgb(30,36,48));
+        chatView=tv(db.chat().isEmpty()?"Здесь появится разговор с агентом. Напишите сообщение или нажмите «🎙 Голосовой диалог».":db.chat(),14,Color.rgb(218,229,244));
         chatView.setTextIsSelectable(true);
-        chatView.setPadding(14,14,14,14);
-        chatView.setBackgroundColor(Color.WHITE);
+        chatView.setPadding(dp(14),dp(14),dp(14),dp(14));
+        chatView.setBackground(bg(Color.rgb(12,22,37),16));
         chatScroll.addView(chatView,new ScrollView.LayoutParams(-1,-2));
         LinearLayout.LayoutParams chatParams=new LinearLayout.LayoutParams(-1,0,1f);
-        chatParams.setMargins(0,8,0,8);
+        chatParams.setMargins(0,dp(8),0,dp(8));
         content.addView(chatScroll,chatParams);
-        Button copyChat=bt("Копировать чат");
-        copyChat.setOnClickListener(v->copyText("История чата",db.chat()));
-        content.addView(copyChat);
+
+        LinearLayout composer=new LinearLayout(this);
+        composer.setGravity(Gravity.BOTTOM|Gravity.CENTER_VERTICAL);
         chatInput=new EditText(this);
-        chatInput.setHint("Напишите запрос…");
-        chatInput.setMinLines(2);
-        chatInput.setGravity(Gravity.TOP);
-        content.addView(chatInput);
-        Button send=bt("Отправить через ORGANISM → GPT");
+        chatInput.setHint("Сообщение агенту…");
+        chatInput.setTextColor(Color.rgb(232,240,250));
+        chatInput.setHintTextColor(Color.rgb(125,145,172));
+        chatInput.setBackground(bg(Color.rgb(18,29,47),16));
+        chatInput.setMinLines(2); chatInput.setMaxLines(5); chatInput.setGravity(Gravity.TOP);
+        chatInput.setPadding(dp(12),dp(10),dp(12),dp(10));
+        composer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(58),1));
+
+        Button mic=bt("🎙"); mic.setContentDescription("Голосовой диалог"); mic.setTextSize(20); mic.setPadding(0,0,0,0);
+        mic.setOnClickListener(v->startVoiceConversation());
+        composer.addView(mic,new LinearLayout.LayoutParams(dp(58),dp(58)));
+        Button send=bt("➤"); send.setContentDescription("Отправить сообщение"); send.setTextSize(22); send.setPadding(0,0,0,0);
         send.setOnClickListener(v->send());
-        content.addView(send);
-        Button ctx=bt("Показать и скопировать Context Snapshot");
-        ctx.setOnClickListener(v->showContextDialog());
-        content.addView(ctx);
-        if(hasPlanAccess())loadModels();else if(hasIdentity()){card("ChatGPT","Аккаунт сохранён, но доступ к использованию плана ChatGPT сейчас не выдан.");Button reconnect=bt("Переподключить ChatGPT");reconnect.setOnClickListener(v->signIn());content.addView(reconnect);}else{card("ChatGPT","Подключите аккаунт, чтобы использовать модель. Импорт и база работают локально без подключения.");Button connect=bt("Подключить ChatGPT");connect.setOnClickListener(v->signIn());content.addView(connect);}
+        composer.addView(send,new LinearLayout.LayoutParams(dp(58),dp(58)));
+        content.addView(composer,new LinearLayout.LayoutParams(-1,dp(62)));
+
+        LinearLayout voiceRow=new LinearLayout(this);
+        Button voiceReply=bt("🔊 Ответ голосом: "+(speakResponses?"ВКЛ":"ВЫКЛ")); voiceReply.setTextSize(12);
+        voiceReply.setOnClickListener(v->{speakResponses=!speakResponses;voiceReply.setText("🔊 Ответ голосом: "+(speakResponses?"ВКЛ":"ВЫКЛ"));});
+        voiceRow.addView(voiceReply,new LinearLayout.LayoutParams(0,dp(44),1));
+        Button copyChat=bt("Копировать"); copyChat.setTextSize(12); copyChat.setOnClickListener(v->copyText("История чата",db.chat()));
+        voiceRow.addView(copyChat,new LinearLayout.LayoutParams(0,dp(44),1));
+        content.addView(voiceRow,new LinearLayout.LayoutParams(-1,dp(48)));
+
+        Button ctx=bt("Контекст ORGANISM"); ctx.setTextSize(12); ctx.setOnClickListener(v->showContextDialog());
+        content.addView(ctx,new LinearLayout.LayoutParams(-1,dp(44)));
+
+        if(hasPlanAccess())loadModels();
+        else if(hasIdentity()){
+            content.addView(tv("ChatGPT подключён как аккаунт, но прямой доступ к плану не выдан.",12,Color.rgb(255,202,104)));
+            Button reconnect=bt("Переподключить ChatGPT"); reconnect.setOnClickListener(v->signIn()); content.addView(reconnect,new LinearLayout.LayoutParams(-1,dp(46)));
+        }else{
+            content.addView(tv("ChatGPT не подключён. Можно пользоваться локальной памятью и другими API-провайдерами.",12,Color.rgb(255,202,104)));
+            Button connect=bt("Подключить ChatGPT"); connect.setOnClickListener(v->signIn()); content.addView(connect,new LinearLayout.LayoutParams(-1,dp(46)));
+        }
+        updateChatHeader();
     }
+
+    void updateChatHeader(){
+        if(modelLabel==null)return;
+        String providerName=selectedProvider;
+        for(ProviderManager.Provider p:providers.all())if(p.id.equals(selectedProvider)){providerName=p.name;break;}
+        modelLabel.setText("Исполнитель: "+providerName+"   •   Модель: "+(model.isEmpty()?"модель не выбрана":model));
+    }
+
+    void startVoiceConversation(){
+        voiceConversation=true;
+        if(Build.VERSION.SDK_INT>=23 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},7001);
+            toast("Разрешите доступ к микрофону и нажмите 🎙 ещё раз.");
+            return;
+        }
+        if(!SpeechRecognizer.isRecognitionAvailable(this)){voiceConversation=false;toast("Распознавание речи недоступно на этом устройстве.");return;}
+        if(speechRecognizer!=null){try{speechRecognizer.cancel();}catch(Exception ignored){}}
+        speechRecognizer=SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizer.setRecognitionListener(new RecognitionListener(){
+            public void onReadyForSpeech(Bundle p){toast("Слушаю…");}
+            public void onBeginningOfSpeech(){}
+            public void onRmsChanged(float r){}
+            public void onBufferReceived(byte[] b){}
+            public void onEndOfSpeech(){}
+            public void onError(int e){voiceConversation=false;toast("Голос: не удалось распознать речь ("+e+")");}
+            public void onResults(Bundle r){ArrayList<String>x=r.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(x!=null&&!x.isEmpty()&&chatInput!=null){chatInput.setText(x.get(0));chatInput.setSelection(chatInput.length());send();}else voiceConversation=false;}
+            public void onPartialResults(Bundle r){}
+            public void onEvent(int t,Bundle p){}
+        });
+        Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ru-RU");
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false);
+        speechRecognizer.startListening(i);
+    }
+
+    void speakText(String text){
+        if(!speakResponses||text==null||text.trim().isEmpty())return;
+        if(textToSpeech==null)textToSpeech=new TextToSpeech(this,status->{if(status==TextToSpeech.SUCCESS){textToSpeech.setLanguage(new java.util.Locale("ru","RU"));textToSpeech.speak(text,TextToSpeech.QUEUE_FLUSH,null,"organism-answer");}});
+        else textToSpeech.speak(text,TextToSpeech.QUEUE_FLUSH,null,"organism-answer");
+    }
+
     void showContextDialog(){
         String snapshot=contextEngine.build(chatInput==null?"":chatInput.getText().toString());
         TextView t=tv(snapshot,14,Color.rgb(30,36,48));
@@ -213,7 +310,7 @@ void showImport(){clear("Импорт");card("Источник → RAW → ра�
     boolean hasPlanAccess(){return (!accessToken.isEmpty()||!refreshToken.isEmpty())&&grantedScopes.contains("chatgpt.tokens.use.direct");}
     void showSettings(){clear("Настройки");card("ИИ-подключения","Управление аккаунтами и веб-сервисами находится в разделе «ИИ». ChatGPT использует сохранённый OAuth-профиль и refresh token. Другие сервисы открываются через браузерную сессию.");Button ai=bt("Открыть ИИ и подключения");ai.setOnClickListener(v->showAiProviders());content.addView(ai);card("ChatGPT","Sign in with ChatGPT. API key не нужен. Доступ к чатам ChatGPT не предоставляется: ORGANISM ведёт собственную историю и базу.");Button c=bt(hasCreds()?"Переподключить":"Подключить ChatGPT");c.setOnClickListener(v->signIn());content.addView(c);Button out=bt("Выйти из ChatGPT");out.setOnClickListener(v->{clearCreds();showSettings();});content.addView(out);Button resetOAuth=bt("Сбросить регистрацию ChatGPT");resetOAuth.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Сбросить регистрацию?").setMessage("Будет удалена локальная OAuth-регистрация ChatGPT и токены. Память ORGANISM, база и RAW не затрагиваются. Следующий вход создаст новую регистрацию.").setNegativeButton("Отмена",null).setPositiveButton("Сбросить",(d,w)->{clearCreds();getPrefs().edit().remove("client_id").apply();showSettings();} ).show());content.addView(resetOAuth);Button backup=bt("Экспорт базы ORGANISM");backup.setOnClickListener(v->backup());content.addView(backup);card("Защита","Удаление памяти проходит через рефлекс защиты; RAW и события не заменяются кратким резюме. Удаление критической памяти автоматически не каскадирует связи.");}
     void backup(){try{File f=new File(getExternalFilesDir(null),"organism-backup.db");copyDb(f);Intent i=new Intent(Intent.ACTION_SEND);i.setType("application/octet-stream");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);i.putExtra(Intent.EXTRA_STREAM,FileProvider.getUriForFile(this,getPackageName()+".files",f));startActivity(Intent.createChooser(i,"Передать резервную копию"));}catch(Exception e){toast("Резервная копия: "+e.getMessage());}}
-    void send(){if(busy){toast("Предыдущий запрос ещё выполняется. Дождитесь ответа.");return;}if(chatInput==null)return;String q=chatInput.getText().toString().trim();if(q.isEmpty())return;if(!"chatgpt".equals(selectedProvider)){ProviderManager.Provider found=null;for(ProviderManager.Provider x:providers.all())if(x.id.equals(selectedProvider))found=x;if(found==null)return;final ProviderManager.Provider pp=found;if("alice".equals(pp.id)){startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(pp.url)));providers.markOpened(pp.id);toast("Алиса работает как веб-сервис; API-канал пока не подключён");return;}if(!providers.isConnected(pp.id)){connectApiProvider(pp);return;}busy=true;chatInput.setText("");long p=db.project("ORGANISM");db.event("USER_MESSAGE",q,p,0,0,"STATED","VERIFIED");chatView.setText(db.chat()+"\n\nORGANISM → "+pp.name+": …");new Thread(()->{try{String context=contextEngine.build(q);String answer=inferExternal(pp.id,q,context);db.event("MODEL_OUTPUT",answer,p,0,0,"STATED","NOT_VERIFIED");db.memory("MODEL_OUTPUT","Ответ "+pp.name+": "+shorten(q,80),answer,p,0,0,"STATED","NOT_VERIFIED",0.5);experienceEngine.recordInteraction(q,answer,p);main.post(()->{busy=false;chatView.setText(db.chat());if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));});}catch(Exception ex){db.event("ERROR",ex.getMessage()==null?ex.toString():ex.getMessage(),p,0,0,"STATED","VERIFIED");main.post(()->{busy=false;chatView.setText(db.chat());toast(pp.name+": "+ex.getMessage());});}}).start();return;}if(!hasPlanAccess()){toast(hasIdentity()?"ChatGPT подключён, но доступ к плану не выдан. Переподключите аккаунт.":"Сначала подключите ChatGPT");return;}busy=true;chatInput.setText("");Map<String,Object> a=new HashMap<>();a.put("claim_status","STATED");a.put("qualified",true);Map<String,Object> c=new HashMap<>();c.put("confidence",1.0);for(ReflexEngine.Result r:reflex.check(c,a))if(r.block){busy=false;toast(r.message);return;}long p=db.project("ORGANISM");db.event("USER_MESSAGE",q,p,0,0,"STATED","VERIFIED");chatView.setText(db.chat()+"\n\nORGANISM → GPT: …");new Thread(()->{try{refreshIfNeeded();String context=contextEngine.build(q);String answer=infer(q,context);db.event("MODEL_OUTPUT",answer,p,0,0,"STATED","NOT_VERIFIED");long mem=db.memory("MODEL_OUTPUT","Ответ на: "+shorten(q,80),answer,p,0,0,"STATED","NOT_VERIFIED",0.5);experienceEngine.recordInteraction(q,answer,p);main.post(()->{busy=false;chatView.setText(db.chat());if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));});}catch(Exception e){db.event("ERROR",e.getMessage()==null?e.toString():e.getMessage(),p,0,0,"STATED","VERIFIED");main.post(()->{busy=false;chatView.setText(db.chat());toast("Ошибка: "+e.getMessage());});}}).start();}
+    void send(){if(busy){toast("Предыдущий запрос ещё выполняется. Дождитесь ответа.");return;}if(chatInput==null)return;String q=chatInput.getText().toString().trim();if(q.isEmpty())return;if(!"chatgpt".equals(selectedProvider)){ProviderManager.Provider found=null;for(ProviderManager.Provider x:providers.all())if(x.id.equals(selectedProvider))found=x;if(found==null)return;final ProviderManager.Provider pp=found;if("alice".equals(pp.id)){startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(pp.url)));providers.markOpened(pp.id);toast("Алиса работает как веб-сервис; API-канал пока не подключён");return;}if(!providers.isConnected(pp.id)){connectApiProvider(pp);return;}final boolean speakAnswer=voiceConversation||speakResponses;voiceConversation=false;busy=true;chatInput.setText("");long p=db.project("ORGANISM");db.event("USER_MESSAGE",q,p,0,0,"STATED","VERIFIED");chatView.setText(db.chat()+"\n\nORGANISM → "+pp.name+": …");new Thread(()->{try{String context=contextEngine.build(q);String answer=inferExternal(pp.id,q,context);db.event("MODEL_OUTPUT",answer,p,0,0,"STATED","NOT_VERIFIED");db.memory("MODEL_OUTPUT","Ответ "+pp.name+": "+shorten(q,80),answer,p,0,0,"STATED","NOT_VERIFIED",0.5);experienceEngine.recordInteraction(q,answer,p);main.post(()->{busy=false;chatView.setText(db.chat());if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));if(speakAnswer)speakText(answer);});}catch(Exception ex){db.event("ERROR",ex.getMessage()==null?ex.toString():ex.getMessage(),p,0,0,"STATED","VERIFIED");main.post(()->{busy=false;chatView.setText(db.chat());toast(pp.name+": "+ex.getMessage());});}}).start();return;}if(!hasPlanAccess()){toast(hasIdentity()?"ChatGPT подключён, но доступ к плану не выдан. Переподключите аккаунт.":"Сначала подключите ChatGPT");return;}final boolean speakAnswer=voiceConversation||speakResponses;voiceConversation=false;busy=true;chatInput.setText("");Map<String,Object> a=new HashMap<>();a.put("claim_status","STATED");a.put("qualified",true);Map<String,Object> c=new HashMap<>();c.put("confidence",1.0);for(ReflexEngine.Result r:reflex.check(c,a))if(r.block){busy=false;toast(r.message);return;}long p=db.project("ORGANISM");db.event("USER_MESSAGE",q,p,0,0,"STATED","VERIFIED");chatView.setText(db.chat()+"\n\nORGANISM → GPT: …");new Thread(()->{try{refreshIfNeeded();String context=contextEngine.build(q);String answer=infer(q,context);db.event("MODEL_OUTPUT",answer,p,0,0,"STATED","NOT_VERIFIED");long mem=db.memory("MODEL_OUTPUT","Ответ на: "+shorten(q,80),answer,p,0,0,"STATED","NOT_VERIFIED",0.5);experienceEngine.recordInteraction(q,answer,p);main.post(()->{busy=false;chatView.setText(db.chat());if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));if(speakAnswer)speakText(answer);});}catch(Exception e){db.event("ERROR",e.getMessage()==null?e.toString():e.getMessage(),p,0,0,"STATED","VERIFIED");main.post(()->{busy=false;chatView.setText(db.chat());toast("Ошибка: "+e.getMessage());});}}).start();}
     int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
     String shorten(String s,int n){return s.length()<=n?s:s.substring(0,n);}
     String inferExternal(String id,String q,String context)throws Exception{
@@ -232,7 +329,7 @@ String infer(String q,String context)throws Exception{if(model.isEmpty())model=c
     String chooseModel()throws Exception{listModels();if(model.isEmpty())throw new Exception("Нет доступной модели");return model;}
     void loadModels(){new Thread(()->{try{listModels();main.post(this::fillModels);}catch(Exception e){main.post(()->toast("Модели: "+e.getMessage()));}}).start();}
     void listModels()throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(API+"/models").openConnection();c.setConnectTimeout(15000);c.setReadTimeout(20000);c.setRequestProperty("Authorization","Bearer "+accessToken);int code=c.getResponseCode();if(code>=400){String x=readAll(c.getErrorStream());String rid=c.getHeaderField("x-request-id");if(rid==null)rid=c.getHeaderField("openai-request-id");throw new Exception("GET /models HTTP "+code+(rid==null?"":(" request_id="+rid))+": "+x);}JSONObject j=new JSONObject(readAll(c.getInputStream()));JSONArray a=j.optJSONArray("models");if(a==null)a=j.optJSONArray("data");modelSlugs.clear();modelNames.clear();if(a!=null)for(int i=0;i<a.length();i++){JSONObject m=a.getJSONObject(i);String slug=m.optString("slug",m.optString("id",""));String vis=m.optString("visibility","");if(!slug.isEmpty()&&(vis.isEmpty()||"list".equals(vis))){modelSlugs.add(slug);modelNames.add(m.optString("display_name",slug));}}if(modelSlugs.isEmpty())throw new Exception("OpenAI вернул пустой каталог моделей");String saved=getPrefs().getString("model","");int ix=modelSlugs.indexOf(saved);if(ix<0)ix=0;model=modelSlugs.get(ix);getPrefs().edit().putString("model",model).apply();}
-    void fillModels(){if(modelSpinner==null)return;ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,modelNames);a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);modelSpinner.setAdapter(a);int ix=modelSlugs.indexOf(model);if(ix>=0)modelSpinner.setSelection(ix);modelSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(pos>=0&&pos<modelSlugs.size()){model=modelSlugs.get(pos);getPrefs().edit().putString("model",model).apply();}}public void onNothingSelected(android.widget.AdapterView<?>p){}});}
+    void fillModels(){if(modelSpinner==null)return;ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,modelNames);a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);modelSpinner.setAdapter(a);int ix=modelSlugs.indexOf(model);if(ix>=0)modelSpinner.setSelection(ix);modelSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(pos>=0&&pos<modelSlugs.size()){model=modelSlugs.get(pos);getPrefs().edit().putString("model",model).apply();updateChatHeader();}}public void onNothingSelected(android.widget.AdapterView<?>p){}});}
     void refreshIfNeeded()throws Exception{if(accessToken.isEmpty()||System.currentTimeMillis()/1000+90<expiresAt)return;if(refreshToken.isEmpty())throw new Exception("Нужна повторная авторизация");String client=getPrefs().getString("client_id","");if(client.isEmpty()||"dynamic_agent_client".equals(client))throw new Exception("Нет выданного client_id для обновления доступа");JSONObject t=postForm(TOKEN,new String[][]{{"grant_type","refresh_token"},{"client_id",client},{"refresh_token",refreshToken},{"resource",RESOURCE}});accessToken=t.getString("access_token");refreshToken=t.optString("refresh_token",refreshToken);expiresAt=System.currentTimeMillis()/1000+t.optLong("expires_in",3600);grantedScopes=t.optString("scope",grantedScopes);saveCreds();}
     void signIn(){if(busy)return;busy=true;new Thread(()->{try{if(callbackSocket!=null){try{callbackSocket.close();}catch(Exception ignored){}callbackSocket=null;}ServerSocket localSocket=new ServerSocket();localSocket.setReuseAddress(true);try{localSocket.bind(new InetSocketAddress(InetAddress.getByName("127.0.0.1"),0));}catch(Exception bindAny){localSocket.bind(new InetSocketAddress(InetAddress.getByName("127.0.0.1"),CALLBACK_PORT_HINT));}int callbackPort=localSocket.getLocalPort();pendingRedirect="http://127.0.0.1:"+callbackPort+"/auth/callback";callbackSocket=localSocket;main.post(()->toast("Ожидание возврата OpenAI…"));pendingState=random(32);pendingNonce=random(32);pendingVerifier=random(48);String challenge=b64(MessageDigest.getInstance("SHA-256").digest(pendingVerifier.getBytes(StandardCharsets.UTF_8)));String client=getPrefs().getString("client_id","dynamic_agent_client");String host=getPrefs().getString("host_id","");if(host.isEmpty()){host="urn:uuid:"+UUID.randomUUID();getPrefs().edit().putString("host_id",host).apply();}boolean returning=!"dynamic_agent_client".equals(client);Uri.Builder u=Uri.parse(AUTH).buildUpon();u.appendQueryParameter("client_id",client).appendQueryParameter("redirect_uri",pendingRedirect).appendQueryParameter("response_type","code").appendQueryParameter("scope","openid profile email offline_access resource.invoke chatgpt.tokens.use.direct").appendQueryParameter("resource",RESOURCE).appendQueryParameter("state",pendingState).appendQueryParameter("nonce",pendingNonce).appendQueryParameter("code_challenge_method","S256").appendQueryParameter("code_challenge",challenge);u.appendQueryParameter("ext_agent_host_id",host);if(!returning){u.appendQueryParameter("agent_name_hint","ОРГАНИЗМ");}else{String hint=getPrefs().getString("id_token_hint","");String email=getPrefs().getString("email","");if(!hint.isEmpty())u.appendQueryParameter("id_token_hint",hint);if(!email.isEmpty())u.appendQueryParameter("login_hint",email);}startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(u.toString())));localSocket.setSoTimeout(10*60*1000);Socket sock=localSocket.accept();BufferedReader r=new BufferedReader(new InputStreamReader(sock.getInputStream(),StandardCharsets.UTF_8));String req=r.readLine();if(req==null||!req.startsWith("GET "))throw new Exception("Loopback callback: неверный HTTP-запрос");String[] requestParts=req.split(" ");if(requestParts.length<2)throw new Exception("Loopback callback: отсутствует путь");String path=requestParts[1];String body="<html><body><h3>ОРГАНИЗМ</h3>Авторизация завершена. Вернитесь в приложение.</body></html>";byte[] bb=body.getBytes(StandardCharsets.UTF_8);OutputStream os=sock.getOutputStream();os.write(("HTTP/1.1 200 OK\\r\nContent-Type: text/html; charset=utf-8\\r\nContent-Length: "+bb.length+"\\r\nConnection: close\\r\n\\r\n").getBytes(StandardCharsets.UTF_8));os.write(bb);os.flush();sock.close();try{localSocket.close();}catch(Exception ignored){}callbackSocket=null;Uri cb=Uri.parse("http://127.0.0.1"+path);if(!pendingState.equals(cb.getQueryParameter("state")))throw new Exception("OAuth state не совпал");String oauthError=cb.getQueryParameter("error");if(oauthError!=null){String desc=cb.getQueryParameter("error_description");throw new Exception("Авторизация: "+oauthError+(desc==null?"":(" — "+desc)));}String code=cb.getQueryParameter("code");if(code==null)throw new Exception("OAuth code отсутствует");String issued=cb.getQueryParameter("client_id");if(!returning){if(issued==null||issued.isEmpty()||"dynamic_agent_client".equals(issued))throw new Exception("OpenAI не вернул выданный client_id");client=issued;getPrefs().edit().putString("client_id",client).apply();}else if(issued!=null&&!issued.isEmpty()&&!client.equals(issued)){throw new Exception("OpenAI вернул другой client_id; регистрация не заменена");}String callbackScope=cb.getQueryParameter("scope");JSONObject tok=postForm(TOKEN,new String[][]{{"grant_type","authorization_code"},{"client_id",client},{"code",code},{"code_verifier",pendingVerifier},{"redirect_uri",pendingRedirect},{"resource",RESOURCE}});idToken=tok.optString("id_token","");if(idToken.isEmpty())throw new Exception("ID token отсутствует");verifyIdToken(idToken,client,pendingNonce);JSONObject p=jwtPart(idToken,1);String verifiedEmail=p.optString("email","");String scopes=tok.optString("scope",callbackScope==null?"":callbackScope);accessToken=tok.optString("access_token","");refreshToken=tok.optString("refresh_token","");expiresAt=System.currentTimeMillis()/1000+tok.optLong("expires_in",0);grantedScopes=scopes;getPrefs().edit().putString("id_token_hint",idToken).putString("email",verifiedEmail).putString("client_id",client).putString("scopes",scopes).apply();if(!scopes.contains("chatgpt.tokens.use.direct")){accessToken="";refreshToken="";expiresAt=0;saveCreds();main.post(()->{busy=false;toast("Аккаунт ChatGPT подключён, но доступ к плану не выдан. Откройте «Переподключить» и подтвердите использование плана.");showSettings();});return;}saveCreds();main.post(()->{busy=false;toast("ChatGPT подключён");showChat();});}catch(Exception e){try{if(callbackSocket!=null)callbackSocket.close();}catch(Exception ignored){}callbackSocket=null;busy=false;main.post(()->toast("Подключение: "+(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage())));}}).start();}
     void verifyIdToken(String jwt,String client,String nonce)throws Exception{JSONObject h=jwtPart(jwt,0),p=jwtPart(jwt,1);if(!"RS256".equals(h.optString("alg")))throw new Exception("Неподдерживаемая подпись");if(!"https://auth.openai.com".equals(p.optString("iss")))throw new Exception("Неверный issuer");if(p.optLong("exp",0)<System.currentTimeMillis()/1000)throw new Exception("ID token истёк");boolean aud=client.equals(p.optString("aud"));JSONArray aa=p.optJSONArray("aud");if(aa!=null)for(int i=0;i<aa.length();i++)aud|=client.equals(aa.optString(i));if(!aud)throw new Exception("Неверная audience");if(!nonce.equals(p.optString("nonce")))throw new Exception("Неверный nonce");JSONObject jwks=new JSONObject(readUrl(JWKS));JSONArray keys=jwks.getJSONArray("keys");String kid=h.optString("kid");for(int i=0;i<keys.length();i++){JSONObject k=keys.getJSONObject(i);if(kid.equals(k.optString("kid"))){BigInteger n=new BigInteger(1,Base64.decode(k.getString("n"),Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING));BigInteger e=new BigInteger(1,Base64.decode(k.getString("e"),Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING));PublicKey pk=KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(n,e));String[] parts=jwt.split("\\.");Signature s=Signature.getInstance("SHA256withRSA");s.initVerify(pk);s.update((parts[0]+"."+parts[1]).getBytes(StandardCharsets.UTF_8));if(!s.verify(Base64.decode(parts[2],Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING)))throw new Exception("Неверная подпись ID token");return;}}throw new Exception("Ключ подписи не найден");}
@@ -247,5 +344,6 @@ String infer(String q,String context)throws Exception{if(model.isEmpty())model=c
     void clearCreds(){accessToken="";refreshToken="";idToken="";expiresAt=0;model="";grantedScopes="";getPrefs().edit().remove("access").remove("refresh").remove("expires").remove("scopes").remove("model").remove("id_token_hint").remove("email").apply();}
     void copyDb(File dest)throws Exception{File inFile=getDatabasePath("organism.db");java.io.FileInputStream in=new java.io.FileInputStream(inFile);java.io.FileOutputStream out=new java.io.FileOutputStream(dest);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();}
     void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
+    @Override protected void onDestroy(){if(speechRecognizer!=null){try{speechRecognizer.destroy();}catch(Exception ignored){}}if(textToSpeech!=null){try{textToSpeech.stop();textToSpeech.shutdown();}catch(Exception ignored){}}super.onDestroy();}
     @Override public void onBackPressed(){if(!"home".equals(screen))showHome();else super.onBackPressed();}
 }
