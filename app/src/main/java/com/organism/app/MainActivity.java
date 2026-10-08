@@ -41,22 +41,33 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle b){super.onCreate(b);WindowCompat.setDecorFitsSystemWindows(getWindow(),false);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);try{db=new Db(this);importer=new ImportPipeline(this,db);contextEngine=new ContextEngine(db);experienceEngine=new ExperienceEngine(db);providers=new ProviderManager(this);loadCreds();buildShell();showHome();}catch(Throwable t){showStartupError(t);}}
     void showStartupError(Throwable t){Log.e("ORGANISM","Startup failure",t);TextView v=new TextView(this);v.setText("ОРГАНИЗМ не смог запуститься.\n\nОшибка: "+t.getClass().getName()+"\n"+String.valueOf(t.getMessage())+"\n\nЗакройте приложение и сообщите этот текст разработчику.");v.setTextSize(16);v.setTextColor(Color.rgb(30,36,48));v.setPadding(32,48,32,48);v.setTextIsSelectable(true);ViewCompat.setOnApplyWindowInsetsListener(v,(view,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());view.setPadding(32,bars.top+32,32,bars.bottom+32);return insets;});setContentView(v);ViewCompat.requestApplyInsets(v);}
-    TextView tv(String s,int z,int c){TextView v=new TextView(this);v.setText(s);v.setTextSize(z);v.setTextColor(c);v.setPadding(10,8,10,8);return v;}
-    GradientDrawable bg(int color,float radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp((int)radius));return g;}
-    Button bt(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(Color.rgb(24,32,48));b.setTextSize(14);b.setMinHeight(dp(46));b.setPadding(dp(14),dp(4),dp(14),dp(4));b.setBackground(bg(Color.WHITE,14));return b;}
+    TextView tv(String text,int z,int c){TextView v=new TextView(this);v.setText(text);v.setTextSize(z);v.setTextColor(c);v.setPadding(dp(4),dp(6),dp(4),dp(6));return v;}
+    GradientDrawable bg(int color,float radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp((int)radius));g.setStroke(dp(1),Color.rgb(43,58,82));return g;}
+    Button bt(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(Color.rgb(226,235,248));b.setTextSize(14);b.setMinHeight(dp(46));b.setPadding(dp(14),dp(4),dp(14),dp(4));b.setBackground(bg(Color.rgb(18,29,47),14));return b;}
+    TextView sectionTitle(String s){TextView v=tv(s,18,Color.rgb(235,242,252));v.setTypeface(null,1);v.setPadding(0,dp(8),0,dp(8));return v;}
+    TextView stat(String value,String label){TextView v=tv(value+"\\n"+label,16,Color.rgb(220,232,248));v.setGravity(Gravity.CENTER);v.setBackground(bg(Color.rgb(14,24,40),14));v.setPadding(dp(8),dp(12),dp(8),dp(12));return v;}
     void buildShell(){
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(245,247,251)); ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());v.setPadding(0,bars.top,0,0);return insets;});
-        LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(18,12,18,8);
-        Button back=bt("‹");back.setTextSize(24);back.setVisibility(View.GONE);back.setOnClickListener(v->showHome());top.addView(back,new LinearLayout.LayoutParams(dp(52),dp(48)));screenTitle=tv("ОРГАНИЗМ",23,Color.rgb(16,24,39));top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));top.setTag(back);back.setTag("__BACK__");
-        status=tv(connectionStatus(),12,hasPlanAccess()?Color.rgb(20,130,80):(hasIdentity()?Color.rgb(180,110,20):Color.DKGRAY));top.addView(status);
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(9,17,30));
+        ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());v.setPadding(0,bars.top,0,bars.bottom);return insets;});
+        LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(dp(14),dp(10),dp(14),dp(8));top.setBackgroundColor(Color.rgb(11,20,34));
+        Button back=bt("‹");back.setTextSize(25);back.setVisibility(View.GONE);back.setOnClickListener(v->showHome());top.addView(back,new LinearLayout.LayoutParams(dp(46),dp(46)));
+        screenTitle=tv("ОРГАНИЗМ",22,Color.rgb(242,247,255));screenTitle.setTypeface(null,1);top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));top.setTag(back);back.setTag("__BACK__");
+        status=tv(connectionStatus(),11,hasPlanAccess()?Color.rgb(105,225,164):(hasIdentity()?Color.rgb(255,202,104):Color.rgb(142,158,184)));status.setGravity(Gravity.CENTER);status.setBackground(bg(Color.rgb(18,33,53),20));status.setPadding(dp(10),dp(6),dp(10),dp(6));top.addView(status,new LinearLayout.LayoutParams(-2,dp(38)));
         root.addView(top);
-        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,24); pageScroll=new ScrollView(this);pageScroll.addView(content); root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));
-        HorizontalScrollView navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
-        String[][] items={{"Главная","home"},{"Чат","chat"},{"ИИ","ai"},{"Память","memory"},{"Импорт","import"},{"База","database"},{"Настройки","settings"}};
-        for(String[] it:items){Button b=bt(it[0]);b.setOnClickListener(v->navigate(it[1]));nav.addView(b,new LinearLayout.LayoutParams(150,58));}
-        navScroll.setTag("ORGANISM_NAV");navScroll.addView(nav);root.addView(navScroll);setContentView(root);
+        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(14),dp(8),dp(14),dp(18));
+        pageScroll=new ScrollView(this);pageScroll.setFillViewport(true);pageScroll.addView(content);root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout nav=new LinearLayout(this);nav.setGravity(Gravity.CENTER);nav.setPadding(dp(4),dp(6),dp(4),dp(6));nav.setBackgroundColor(Color.rgb(11,20,34));
+        String[][] items={{"⌂","Главная","home"},{"◉","Чат","chat"},{"✦","ИИ","ai"},{"◇","Память","memory"},{"☰","Ещё","more"}};
+        for(String[] it:items){Button b=bt(it[0]+"\\n"+it[1]);b.setTextSize(11);b.setGravity(Gravity.CENTER);b.setPadding(0,0,0,0);b.setBackgroundColor(Color.TRANSPARENT);b.setOnClickListener(v->{if("more".equals(it[2]))showMoreMenu();else navigate(it[2]);});nav.addView(b,new LinearLayout.LayoutParams(0,dp(58),1));}
+        root.addView(nav);setContentView(root);
     }
-    void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("ai".equals(s))showAiProviders();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else showSettings();}
+    void showMoreMenu(){
+        final String[] items={"Импорт","База","Задачи","Источники","Опыт","Настройки"};
+        final Runnable[] actions={()->showImport(),()->showDatabase(),()->showTasks(),()->showSources(),()->showExperience(),()->showSettings()};
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("Разделы Организма").setItems(items,(x,w)->actions[w].run()).create();d.show();
+    }
+    void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(16),dp(14),dp(16),dp(14));box.setBackground(bg(Color.rgb(18,29,47),18));TextView h=tv(title,17,Color.rgb(238,245,255));h.setTypeface(null,1);box.addView(h);TextView t=tv(body,13,Color.rgb(171,188,212));box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(12));content.addView(box,p);}
+    void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("ai".equals(s))showAiProviders();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else if("projects".equals(s))showProjects();else showSettings();}
     void clear(String title){screen=title;ensurePageMode(false);content.removeAllViews();screenTitle.setText(title);status.setText(connectionStatus());View b=(View)root.findViewWithTag("__BACK__");if(b!=null)b.setVisibility("home".equals(title)?View.GONE:View.VISIBLE);View top=root.getChildAt(0);if(top!=null&&top.getTag() instanceof View){View back=(View)top.getTag();back.setVisibility("home".equals(title)?View.GONE:View.VISIBLE);}}
     void ensurePageMode(boolean chat){
         if(chat){
@@ -92,7 +103,31 @@ public class MainActivity extends Activity {
         }
     }
     void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(18,14,18,14);box.setBackground(bg(Color.WHITE,18));TextView h=tv(title,18,Color.rgb(20,29,44));box.addView(h);TextView t=tv(body,14,Color.rgb(55,63,77));box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,12);content.addView(box,p);}
-    void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);}
+    void showHome(){
+        clear("Главная");
+        content.addView(tv("Центр Организма",25,Color.rgb(242,247,255)));
+        content.addView(tv("Память • Контекст • Опыт • Агенты • Непрерывность",13,Color.rgb(137,157,184)));
+        card("Текущий контур","Я → ORGANISM → выбранный агент → ORGANISM → Я\\n\\nОрганизм сохраняет состояние, события, источники, память и опыт отдельно от модели.");
+        LinearLayout grid=new LinearLayout(this);grid.setOrientation(LinearLayout.HORIZONTAL);
+        String[][] stats={{""+db.count("memory_objects"),"Память"},{" "+db.count("experiences"),"Опыт"},{""+db.count("relations"),"Связи"},{""+db.count("tasks"),"Задачи"}};
+        for(String[] x:stats){TextView v=stat(x[0].trim(),x[1]);grid.addView(v,new LinearLayout.LayoutParams(0,dp(74),1));}
+        content.addView(grid,new LinearLayout.LayoutParams(-1,dp(74)));
+        content.addView(sectionTitle("Рабочее состояние"));
+        card("ORGANISM","Проект: ORGANISM\\nИсточники: "+db.count("sources")+"  •  События: "+db.count("events")+"\\nПоследнее состояние восстанавливается через Context Engine.");
+        LinearLayout row=new LinearLayout(this);
+        Button cont=bt(hasCreds()?"▶ Продолжить":"Подключить ChatGPT");cont.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});row.addView(cont,new LinearLayout.LayoutParams(0,dp(50),1));
+        Button chat=bt("Чат");chat.setOnClickListener(v->showChat());row.addView(chat,new LinearLayout.LayoutParams(0,dp(50),1));content.addView(row);
+        LinearLayout row2=new LinearLayout(this);
+        Button imp=bt("Импорт");imp.setOnClickListener(v->showImport());row2.addView(imp,new LinearLayout.LayoutParams(0,dp(50),1));
+        Button ai=bt("Агенты");ai.setOnClickListener(v->showAiProviders());row2.addView(ai,new LinearLayout.LayoutParams(0,dp(50),1));content.addView(row2);
+        card("Память и опыт","Новый ответ не становится автоматически истиной: результат проходит через события, verification, provenance и кандидат опыта. Непроверенное остаётся квалифицированным.");
+    }
+    void showProjects(){
+        clear("Проекты");card("Проекты","Активный проект и его состояния хранятся независимо от выбранного AI-агента.");
+        content.addView(tv("ORGANISM",18,Color.rgb(230,239,252)));
+        content.addView(tv("Состояний: "+db.count("project_states")+" • Задач: "+db.count("tasks")+" • Событий: "+db.count("events"),13,Color.rgb(150,170,198)));
+        Button b=bt("Открыть задачи");b.setOnClickListener(v->showTasks());content.addView(b);
+    }
     void showChat(){
         clear("Чат");
         ensurePageMode(true);
