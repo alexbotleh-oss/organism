@@ -19,6 +19,8 @@ import java.util.*;
 import javax.crypto.*;
 import org.json.*;
 import androidx.core.content.FileProvider;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends Activity {
     static final String AUTH="https://auth.openai.com/api/accounts/authorize";
@@ -36,11 +38,11 @@ public class MainActivity extends Activity {
     ArrayList<String> modelSlugs=new ArrayList<>(),modelNames=new ArrayList<>();
 
     @Override public void onCreate(Bundle b){super.onCreate(b);try{db=new Db(this);importer=new ImportPipeline(this,db);contextEngine=new ContextEngine(db);experienceEngine=new ExperienceEngine(db);loadCreds();buildShell();showHome();}catch(Throwable t){showStartupError(t);}}
-    void showStartupError(Throwable t){Log.e("ORGANISM","Startup failure",t);TextView v=new TextView(this);v.setText("ОРГАНИЗМ не смог запуститься.\\n\\nОшибка: "+t.getClass().getName()+"\\n"+String.valueOf(t.getMessage())+"\\n\\nЗакройте приложение и сообщите этот текст разработчику.");v.setTextSize(16);v.setTextColor(Color.rgb(30,36,48));v.setPadding(32,48,32,48);v.setTextIsSelectable(true);setContentView(v);}
+    void showStartupError(Throwable t){Log.e("ORGANISM","Startup failure",t);TextView v=new TextView(this);v.setText("ОРГАНИЗМ не смог запуститься.\n\nОшибка: "+t.getClass().getName()+"\n"+String.valueOf(t.getMessage())+"\n\nЗакройте приложение и сообщите этот текст разработчику.");v.setTextSize(16);v.setTextColor(Color.rgb(30,36,48));v.setPadding(32,48,32,48);v.setTextIsSelectable(true);setContentView(v);}
     TextView tv(String s,int z,int c){TextView v=new TextView(this);v.setText(s);v.setTextSize(z);v.setTextColor(c);v.setPadding(10,8,10,8);return v;}
     Button bt(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
     void buildShell(){
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(245,247,251));
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(245,247,251)); ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());v.setPadding(v.getPaddingLeft(),bars.top,v.getPaddingRight(),v.getPaddingBottom());return insets;});
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(18,12,18,8);
         screenTitle=tv("ОРГАНИЗМ",23,Color.rgb(16,24,39));top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));
         status=tv(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён",12,Color.DKGRAY);top.addView(status);
