@@ -22,7 +22,9 @@ public class ProviderManager {
     public List<Provider> all(){return providers;}
     public boolean isConnected(String id){
         if("chatgpt".equals(id)){android.content.SharedPreferences main=ctx.getSharedPreferences("organism",Context.MODE_PRIVATE);return (!main.getString("access","").isEmpty() || !main.getString("refresh","").isEmpty()) && main.getString("scopes","").contains("chatgpt.tokens.use.direct");}
-        return false;
+        return !p.getString("api_key_"+id,"").isEmpty();
     }
+    public String getApiKey(String id){return p.getString("api_key_"+id,"");}
+    public void setApiKey(String id,String key){p.edit().putString("api_key_"+id,key==null?"":key.trim()).apply();}
     public void markOpened(String id){p.edit().putBoolean("opened_"+id,true).apply();}
 }
