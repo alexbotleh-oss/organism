@@ -70,7 +70,7 @@ public final class ContextEngine {
     private void addFtsCandidates(List<Candidate> a,String q){
         if(q.isEmpty())return;
         try{
-            Cursor c=db.query("SELECT m.logical_id,m.title,m.content,m.claim_status,m.verification_status,m.confidence FROM memory_fts f JOIN memory_objects m ON m.id=f.rowid WHERE memory_fts MATCH ? AND m.memory_status='ACTIVE' LIMIT 20",new String[]{fts(q)});
+            String[] terms=q.split("[^\\p{L}\\p{N}]+"); StringBuilder sql=new StringBuilder("SELECT m.logical_id,m.title,m.content,m.claim_status,m.verification_status,m.confidence FROM memory_search s JOIN memory_objects m ON m.id=s.memory_id WHERE m.memory_status='ACTIVE' AND ("); ArrayList<String> args=new ArrayList<>(); int added=0; for(String term:terms){if(term.length()<2)continue; if(added++>0)sql.append(" OR "); sql.append("(s.title LIKE ? OR s.content LIKE ?)"); args.add("%"+term+"%");args.add("%"+term+"%");} sql.append(") LIMIT 20"); Cursor c=db.query(sql.toString(),args.toArray(new String[0]));
             while(c.moveToNext()){double s=.72+.12*c.getDouble(5);a.add(new Candidate(c.getString(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getDouble(5),s));} c.close();
         }catch(Exception ignored){}
     }
