@@ -25,5 +25,5 @@ android {
 
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-    implementation("androidx.core:core:1.17.0")
+    implementation("androidx.core:core:1.15.0")
 }
