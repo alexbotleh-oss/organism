@@ -16,7 +16,8 @@ import java.security.*;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.*;
 import javax.crypto.*;
-import org.json.*;\nimport androidx.core.content.FileProvider;
+import org.json.*;
+import androidx.core.content.FileProvider;
 
 public class MainActivity extends Activity {
     static final String AUTH="https://auth.openai.com/api/accounts/authorize";
