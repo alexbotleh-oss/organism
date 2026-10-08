@@ -85,7 +85,7 @@ public class MainActivity extends Activity {
     void saveCreds(){getPrefs().edit().putString("access",accessToken).putString("refresh",refreshToken).putLong("expires",expiresAt).apply();}
     void loadCreds(){accessToken=getPrefs().getString("access","");refreshToken=getPrefs().getString("refresh","");expiresAt=getPrefs().getLong("expires",0);idToken=getPrefs().getString("id_token_hint","");model=getPrefs().getString("model","");}
     void clearCreds(){accessToken="";refreshToken="";idToken="";expiresAt=0;model="";getPrefs().edit().remove("access").remove("refresh").remove("expires").remove("id_token_hint").remove("email").remove("client_id").remove("model").apply();}
-    void copyDb(File out)throws Exception{File inFile=getDatabasePath("organism.db");java.io.FileInputStream in=new java.io.FileInputStream(inFile);java.io.FileOutputStream out=new java.io.FileOutputStream(out);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();}
+    void copyDb(File dest)throws Exception{File inFile=getDatabasePath("organism.db");java.io.FileInputStream in=new java.io.FileInputStream(inFile);java.io.FileOutputStream out=new java.io.FileOutputStream(dest);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();}
     void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
     @Override public void onBackPressed(){if(!"home".equals(screen))showHome();else super.onBackPressed();}
 }
