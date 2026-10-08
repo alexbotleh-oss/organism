@@ -122,7 +122,7 @@ public class ImportPipeline {
         int bad=0;
         for(int i=0;i<s.length();i++){
             char c=s.charAt(i);
-            if(c=='\uFFFD'||c=='Ã'||c=='Â'||c=='Ð'||c=='Ñ'||c=='Р'||c=='С')bad++;
+            if(c=='\uFFFD'||c=='Ã'||c=='Â'||c=='Ð'||c=='Ñ')bad++;
         }
         return bad>=2 && bad*10>=s.length();
     }
