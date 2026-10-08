@@ -9,7 +9,7 @@ public class ProviderManager {
         public final String id,name,url;
         Provider(String i,String n,String u){id=i;name=n;url=u;}
     }
-    private final SharedPreferences p;
+    private final SharedPreferences p; private final Context ctx;
     private final List<Provider> providers=Arrays.asList(
         new Provider("chatgpt","ChatGPT","https://chatgpt.com/"),
         new Provider("qwen","Qwen","https://chat.qwen.ai/"),
@@ -18,7 +18,7 @@ public class ProviderManager {
         new Provider("gemini","Gemini","https://gemini.google.com/"),
         new Provider("claude","Claude","https://claude.ai/")
     );
-    public ProviderManager(Context c){p=c.getSharedPreferences("organism_ai",Context.MODE_PRIVATE);}
+    public ProviderManager(Context c){ctx=c.getApplicationContext();p=c.getSharedPreferences("organism_ai",Context.MODE_PRIVATE);}
     public List<Provider> all(){return providers;}
     public boolean isConnected(String id){
         if("chatgpt".equals(id))return false;
