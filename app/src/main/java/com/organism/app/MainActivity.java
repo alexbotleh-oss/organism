@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
     static final int CALLBACK_PORT_HINT=1455;
 
     Db db; ImportPipeline importer; ReflexEngine reflex=new ReflexEngine(); ContextEngine contextEngine; ExperienceEngine experienceEngine;
-    LinearLayout root,content; ScrollView pageScroll; TextView status,screenTitle,chatView,modelLabel; EditText chatInput; Spinner modelSpinner,providerSpinner; ScrollView chatScroll; ProviderManager providers; String selectedProvider="chatgpt"; SpeechRecognizer speechRecognizer; TextToSpeech textToSpeech; boolean voiceConversation=false; boolean speakResponses=false;
+    LinearLayout root,content,bottomNav; ScrollView pageScroll; TextView status,screenTitle,chatView,modelLabel; EditText chatInput; Spinner modelSpinner,providerSpinner; ScrollView chatScroll; ProviderManager providers; String selectedProvider="chatgpt"; SpeechRecognizer speechRecognizer; TextToSpeech textToSpeech; boolean voiceConversation=false; boolean speakResponses=false;
     Handler main=new Handler(Looper.getMainLooper()); boolean busy=false; String screen="home";
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model="",grantedScopes=""; long expiresAt=0;
@@ -53,7 +53,7 @@ public class MainActivity extends Activity {
     TextView stat(String value,String label){TextView v=tv(value+"\n"+label,16,Color.rgb(220,232,248));v.setGravity(Gravity.CENTER);v.setBackground(bg(Color.rgb(14,24,40),14));v.setPadding(dp(8),dp(12),dp(8),dp(12));return v;}
     void buildShell(){
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(9,17,30));
-        ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());v.setPadding(0,bars.top,0,bars.bottom);return insets;});
+        ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());androidx.core.graphics.Insets ime=insets.getInsets(WindowInsetsCompat.Type.ime());boolean keyboard=insets.isVisible(WindowInsetsCompat.Type.ime());int bottom=Math.max(bars.bottom,ime.bottom);v.setPadding(0,bars.top,0,bottom);if(bottomNav!=null)bottomNav.setVisibility(keyboard&&"chat".equals(screen)?View.GONE:View.VISIBLE);return insets;});
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(dp(14),dp(10),dp(14),dp(8));top.setBackgroundColor(Color.rgb(11,20,34));
         Button back=bt("‹");back.setTextSize(25);back.setVisibility(View.GONE);back.setOnClickListener(v->showHome());top.addView(back,new LinearLayout.LayoutParams(dp(46),dp(46)));
         screenTitle=tv("ОРГАНИЗМ",22,Color.rgb(242,247,255));screenTitle.setTypeface(null,1);top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));top.setTag(back);back.setTag("__BACK__");
@@ -61,10 +61,10 @@ public class MainActivity extends Activity {
         root.addView(top);
         content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(14),dp(8),dp(14),dp(18));
         pageScroll=new ScrollView(this);pageScroll.setFillViewport(true);pageScroll.addView(content);root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout nav=new LinearLayout(this);nav.setGravity(Gravity.CENTER);nav.setPadding(dp(4),dp(6),dp(4),dp(6));nav.setBackgroundColor(Color.rgb(11,20,34));
+        bottomNav=new LinearLayout(this);bottomNav.setGravity(Gravity.CENTER);bottomNav.setPadding(dp(4),dp(6),dp(4),dp(6));bottomNav.setBackgroundColor(Color.rgb(11,20,34));
         String[][] items={{"⌂","Главная","home"},{"◉","Чат","chat"},{"✦","ИИ","ai"},{"◇","Память","memory"},{"☰","Ещё","more"}};
-        for(String[] it:items){Button b=bt(it[0]+"\n"+it[1]);b.setTextSize(11);b.setGravity(Gravity.CENTER);b.setPadding(0,0,0,0);b.setBackgroundColor(Color.TRANSPARENT);b.setOnClickListener(v->{if("more".equals(it[2]))showMoreMenu();else navigate(it[2]);});nav.addView(b,new LinearLayout.LayoutParams(0,dp(58),1));}
-        root.addView(nav);setContentView(root);
+        for(String[] it:items){Button b=bt(it[0]+"\n"+it[1]);b.setTextSize(11);b.setGravity(Gravity.CENTER);b.setPadding(0,0,0,0);b.setBackgroundColor(Color.TRANSPARENT);b.setOnClickListener(v->{if("more".equals(it[2]))showMoreMenu();else navigate(it[2]);});bottomNav.addView(b,new LinearLayout.LayoutParams(0,dp(58),1));}
+        root.addView(bottomNav);setContentView(root);
     }
     void showMoreMenu(){
         final String[] items={"Импорт","База","Задачи","Источники","Опыт","Настройки"};
@@ -186,9 +186,9 @@ public class MainActivity extends Activity {
         chatInput.setTextColor(Color.rgb(232,240,250));
         chatInput.setHintTextColor(Color.rgb(125,145,172));
         chatInput.setBackground(bg(Color.rgb(18,29,47),16));
-        chatInput.setMinLines(2); chatInput.setMaxLines(5); chatInput.setGravity(Gravity.TOP);
+        chatInput.setMinLines(2); chatInput.setMaxLines(5); chatInput.setGravity(Gravity.TOP); chatInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         chatInput.setPadding(dp(12),dp(10),dp(12),dp(10));
-        composer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(58),1));
+        chatInput.setOnFocusChangeListener((v,hasFocus)->{if(hasFocus){chatInput.postDelayed(()->{if(chatScroll!=null)chatScroll.fullScroll(View.FOCUS_DOWN);ViewCompat.requestApplyInsets(root);},150);}});\n        composer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(58),1));
 
         Button mic=bt("🎙"); mic.setContentDescription("Голосовой диалог"); mic.setTextSize(20); mic.setPadding(0,0,0,0);
         mic.setOnClickListener(v->startVoiceConversation());
