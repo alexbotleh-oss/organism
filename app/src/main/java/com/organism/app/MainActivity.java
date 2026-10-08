@@ -50,8 +50,7 @@ public class MainActivity extends Activity {
         screenTitle=tv("ОРГАНИЗМ",23,Color.rgb(16,24,39));top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));
         status=tv(hasCreds()?"● ChatGPT подключён":"○ ChatGPT не подключён",12,hasCreds()?Color.rgb(20,130,80):Color.DKGRAY);top.addView(status);
         root.addView(top);
-        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,24);
-        root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
+        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,24); ScrollView pageScroll=new ScrollView(this);pageScroll.addView(content); root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));
         HorizontalScrollView navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
         String[][] items={{"Главная","home"},{"Чат","chat"},{"ИИ","ai"},{"Память","memory"},{"Импорт","import"},{"База","database"},{"Настройки","settings"}};
         for(String[] it:items){Button b=bt(it[0]);b.setOnClickListener(v->navigate(it[1]));nav.addView(b,new LinearLayout.LayoutParams(150,58));}
