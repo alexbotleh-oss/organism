@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+<title>ОРГАНИЗМ — PWA TEST</title>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">ORGANISM PWA TEST v0.1</div>
+      <h1>ОРГАНИЗМ</h1>
+    </div>
+    <button id="agentStatus" class="status-pill">Агент: не подключён</button>
+  </header>
+  <main id="view"></main>
+  <nav class="bottom-nav">
+    <button data-view="home">⌂<span>Главная</span></button>
+    <button data-view="chat">◉<span>Чат</span></button>
+    <button data-view="projects">▣<span>Проекты</span></button>
+    <button data-view="knowledge">✦<span>Знания</span></button>
+    <button data-view="settings">⚙<span>Настройки</span></button>
+  </nav>
+</div>
+<div id="modal" class="modal hidden"><div class="modal-card" id="modalBody"></div></div>
+<input id="fileInput" type="file" accept=".txt,text/plain" hidden>
+<script src="app.js"></script>
+</body>
+</html>
