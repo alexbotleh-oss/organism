@@ -102,7 +102,6 @@ public class MainActivity extends Activity {
             }
         }
     }
-    void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(18,14,18,14);box.setBackground(bg(Color.WHITE,18));TextView h=tv(title,18,Color.rgb(20,29,44));box.addView(h);TextView t=tv(body,14,Color.rgb(55,63,77));box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,12);content.addView(box,p);}
     void showHome(){
         clear("Главная");
         content.addView(tv("Центр Организма",25,Color.rgb(242,247,255)));
