@@ -135,7 +135,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if q.get("error"): raise RuntimeError(q["error"][0]+": "+q.get("error_description",[""])[0])
                 state=q.get("state",[""])[0]; code=q.get("code",[""])[0]; cid=q.get("client_id",[""])[0]
-                if not code or not state or not cid: raise RuntimeError("OAuth callback не содержит code/state/client_id.")
+                if not code or not state: raise RuntimeError("OAuth callback не содержит code/state.")
+                if not cid:
+                    old=load_creds(); cid=(old or {}).get("client_id","")
+                if not cid: raise RuntimeError("OAuth callback не содержит client_id и нет сохранённой регистрации.")
                 exchange(code,state,cid); msg="ОРГАНИЗМ подключён к ChatGPT plan. Вернитесь в приложение."
             except Exception as e: msg="Ошибка подключения: "+str(e)
             data=f'<!doctype html><meta charset="utf-8"><title>ОРГАНИЗМ</title><h2>ОРГАНИЗМ</h2><p>{esc(msg)}</p>'.encode()
