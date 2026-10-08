@@ -122,9 +122,14 @@ public class ImportPipeline {
         int bad=0;
         for(int i=0;i<s.length();i++){
             char c=s.charAt(i);
-            if(c=='\uFFFD'||c=='Ã'||c=='Â'||c=='Ð'||c=='Ñ'||c=='Р'||c=='С')bad++;
+            if(c=='\uFFFD'||c=='Ã'||c=='Â'||c=='Ð'||c=='Ñ'||isMojibakeMarker(s,i))bad++;
         }
         return bad>=2 && bad*10>=s.length();
+    }
+    private boolean isMojibakeMarker(String s,int i){
+        if(i<0||i+1>=s.length())return false;
+        char c=s.charAt(i),n=s.charAt(i+1);
+        return (c=='Р'||c=='С') && ((n>='А'&&n<='я') || n=='ё' || n=='Ё');
     }
     private int scoreReadable(String s){
         int score=0;
