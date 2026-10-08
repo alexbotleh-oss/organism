@@ -10,7 +10,7 @@ public class Db extends SQLiteOpenHelper {
     private static final int VERSION=2;
     private final Context ctx;
     public Db(Context c){super(c,"organism.db",null,VERSION);ctx=c;setWriteAheadLoggingEnabled(true);}
-    @Override public void onConfigure(SQLiteDatabase d){d.setForeignKeyConstraintsEnabled(true);d.execSQL("PRAGMA busy_timeout=5000");}
+    @Override public void onConfigure(SQLiteDatabase d){d.setForeignKeyConstraintsEnabled(true);}
     @Override public void onCreate(SQLiteDatabase d){schema(d);seed(d);}
     @Override public void onUpgrade(SQLiteDatabase d,int o,int n){schema(d);migrateLegacy(d);}
     private void schema(SQLiteDatabase d){
