@@ -62,7 +62,9 @@ public class MainActivity extends Activity {
     void showChat(){
         clear("Чат");
         card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");
-        card("Подключение","Агент: ORGANISM\nChatGPT: "+getPrefs().getString("email","не определён")+"\nМодель выбирается ниже.");
+        card("Исполнитель","ORGANISM — постоянный слой памяти. Ниже выбирается AI-провайдер. Реальный API-вызов сейчас реализован для ChatGPT; веб-провайдеры открываются в браузерной сессии без повторного входа, пока сервис сохраняет сессию.");
+        Spinner providerSpinner=new Spinner(this); ArrayList<String> providerNames=new ArrayList<>(); for(ProviderManager.Provider p:providers.all())providerNames.add(p.name); ArrayAdapter<String> pa=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,providerNames);pa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);providerSpinner.setAdapter(pa); providerSpinner.setSelection(0); content.addView(providerSpinner,new LinearLayout.LayoutParams(-1,-2));
+        card("ChatGPT","Аккаунт: "+getPrefs().getString("email","не определён")+"\nМодель выбирается ниже.");
         LinearLayout row=new LinearLayout(this);
         row.addView(tv("Модель",14,Color.DKGRAY),new LinearLayout.LayoutParams(0,-2,.25f));
         modelSpinner=new Spinner(this);
