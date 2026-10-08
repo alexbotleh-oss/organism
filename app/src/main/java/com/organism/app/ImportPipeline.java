@@ -75,7 +75,7 @@ public class ImportPipeline {
 
     private void importZip(String name,byte[] bytes)throws Exception{
         ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(bytes));ZipEntry e;int n=0;long project=db.project("ORGANISM");
-        while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readBytes(z);String text=new String(b,StandardCharsets.UTF_8);
+        while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=new String(b,StandardCharsets.UTF_8);
             if(p.endsWith("conversations.json")||p.endsWith("chat.json"))parseChatJson(e.getName(),text);else if(text.length()>0)ingest("CHAT_EXPORT",e.getName(),e.getName(),text);n++;}
         z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","VERIFIED");writeSnapshot(project);
     }
@@ -88,11 +88,11 @@ public class ImportPipeline {
         }
     }
 
-    private String pdf(byte[] bytes)throws Exception{PDDocument d=PDDocument.load(new ByteArrayInputStream(bytes));try{return new PDFTextStripper().getText(d);}finally{d.close();}}
-    private byte[] readBytes(InputStream in)throws Exception{if(in==null)throw new IOException("Не удалось открыть источник");ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))>0)o.write(b,0,n);in.close();return o.toByteArray();}
+    private byte[] readZipEntry(ZipInputStream z)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=z.read(b))>0)o.write(b,0,n);return o.toByteArray();}\n    private String pdf(byte[] bytes)throws Exception{PDDocument d=PDDocument.load(new ByteArrayInputStream(bytes));try{return new PDFTextStripper().getText(d);}finally{d.close();}}
+    private byte[] readBytes(InputStream in)throws Exception{if(in==null)throw new IOException("Не удалось открыть источник");try{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))>0)o.write(b,0,n);return o.toByteArray();}finally{if(!(in instanceof ZipInputStream))try{in.close();}catch(Exception ignored){}}}
     private String sha(String s)throws Exception{byte[] b=MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));StringBuilder x=new StringBuilder();for(byte v:b)x.append(String.format(Locale.US,"%02x",v));return x.toString();}
     private String title(String name,String text){String first=text.split("\n")[0].trim();return first.length()>80?first.substring(0,80):first.isEmpty()?name:first;}
-    private void writeRaw(String name,String text)throws Exception{File dir=new File(ctx.getFilesDir(),"raw");dir.mkdirs();String safe=name.replaceAll("[^A-Za-z0-9А-Яа-я._-]","_");new FileOutputStream(new File(dir,System.currentTimeMillis()+"_"+safe+".raw.txt")).write(text.getBytes(StandardCharsets.UTF_8));}
+    private void writeRaw(String name,String text)throws Exception{File dir=new File(ctx.getFilesDir(),"raw");dir.mkdirs();String safe=name.replaceAll("[^A-Za-z0-9А-Яа-я._-]","_");FileOutputStream o=new FileOutputStream(new File(dir,System.currentTimeMillis()+"_"+safe+".raw.txt"));o.write(text.getBytes(StandardCharsets.UTF_8));o.close();}
     private void appendEvent(String kind,String name,long src)throws Exception{File f=new File(ctx.getFilesDir(),"events.jsonl");FileOutputStream o=new FileOutputStream(f,true);String line="{\"event_id\":\""+db.id("EVT")+"\",\"timestamp\":\""+db.now()+"\",\"kind\":\""+kind+"\",\"source_id\":"+src+",\"description\":\""+name.replace("\"","'")+"\"}\n";o.write(line.getBytes(StandardCharsets.UTF_8));o.close();}
     private void writeSnapshot(long project)throws Exception{File f=new File(ctx.getFilesDir(),"PROJECT_MEMORY.md");String state=db.queryOne("SELECT summary FROM project_states WHERE is_current=1 ORDER BY id DESC LIMIT 1",null);String text="# ORGANISM PROJECT MEMORY\n\n- project: ORGANISM\n- current_state: "+state+"\n- active_task: see tasks table\n- status: ACTIVE\n- last_update: "+db.now()+"\n- memory_objects: "+db.count("memory_objects")+"\n- experiences: "+db.count("experiences")+"\n- sources: "+db.count("sources")+"\n";new FileOutputStream(f).write(text.getBytes(StandardCharsets.UTF_8));}
 }
