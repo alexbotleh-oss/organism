@@ -64,14 +64,30 @@ public class MainActivity extends Activity {
                 int i=root.indexOfChild(pageScroll);
                 pageScroll.removeView(content);
                 root.removeView(pageScroll);
-                root.addView(content,Math.min(i,root.getChildCount()));
+                LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1f);
+                root.addView(content,cp);
+            }else if(content.getParent()!=root){
+                LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1f);
+                root.addView(content,cp);
+            }else{
+                ViewGroup.LayoutParams lp=content.getLayoutParams();
+                if(!(lp instanceof LinearLayout.LayoutParams) || ((LinearLayout.LayoutParams)lp).height!=0 || ((LinearLayout.LayoutParams)lp).weight!=1f){
+                    content.setLayoutParams(new LinearLayout.LayoutParams(-1,0,1f));
+                }
             }
         }else{
             if(content.getParent()==root){
                 int i=root.indexOfChild(content);
                 root.removeView(content);
-                pageScroll.addView(content);
-                root.addView(pageScroll,Math.min(i,root.getChildCount()));
+                pageScroll.removeAllViews();
+                pageScroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+                root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1f));
+            }else if(pageScroll.getParent()!=root){
+                if(content.getParent()!=pageScroll){
+                    pageScroll.removeAllViews();
+                    pageScroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+                }
+                root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1f));
             }
         }
     }
