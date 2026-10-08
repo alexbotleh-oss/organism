@@ -5,6 +5,7 @@ import android.net.Uri;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.zip.*;
@@ -25,7 +26,7 @@ public class ImportPipeline {
             if(name.toLowerCase(Locale.ROOT).endsWith(".zip")||"application/zip".equals(type)){importZip(name,bytes);l.done("ChatGPT ZIP обработан: "+name);return;}
             String lower=name.toLowerCase(Locale.ROOT);String text;
             if(lower.endsWith(".pdf")||"application/pdf".equals(type))text=pdf(bytes);
-            else text=new String(bytes,StandardCharsets.UTF_8);
+            else text=decodeText(bytes);
             ingest("FILE",name,uri.toString(),text);l.done("Источник импортирован: "+name);}
         catch(Exception e){l.fail(e.getMessage()==null?e.toString():e.getMessage());}}).start();
     }
@@ -89,7 +90,52 @@ public class ImportPipeline {
     }
 
     private byte[] readZipEntry(ZipInputStream z)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=z.read(b))>0)o.write(b,0,n);return o.toByteArray();}
-    private String pdf(byte[] bytes)throws Exception{PDDocument d=PDDocument.load(new ByteArrayInputStream(bytes));try{return new PDFTextStripper().getText(d);}finally{d.close();}}
+    private String pdf(byte[] bytes)throws Exception{
+        PDDocument d=PDDocument.load(new ByteArrayInputStream(bytes));
+        try{
+            String text=new PDFTextStripper().getText(d);
+            return repairMojibake(text);
+        }finally{d.close();}
+    }
+    private String decodeText(byte[] bytes){
+        if(bytes.length>=3&&(bytes[0]&255)==0xEF&&(bytes[1]&255)==0xBB&&(bytes[2]&255)==0xBF)return new String(bytes,3,bytes.length-3,StandardCharsets.UTF_8);
+        if(bytes.length>=2&&(bytes[0]&255)==0xFF&&(bytes[1]&255)==0xFE)return new String(bytes,2,bytes.length-2,StandardCharsets.UTF_16LE);
+        if(bytes.length>=2&&(bytes[0]&255)==0xFE&&(bytes[1]&255)==0xFF)return new String(bytes,2,bytes.length-2,StandardCharsets.UTF_16BE);
+        String utf8=new String(bytes,StandardCharsets.UTF_8);
+        if(!looksBroken(utf8))return utf8;
+        try{
+            String cp1251=new String(bytes,Charset.forName("windows-1251"));
+            if(!looksBroken(cp1251))return cp1251;
+        }catch(Exception ignored){}
+        return utf8;
+    }
+    private String repairMojibake(String text){
+        if(text==null||!looksBroken(text))return text;
+        try{
+            String fixed=new String(text.getBytes(StandardCharsets.ISO_8859_1),StandardCharsets.UTF_8);
+            if(scoreReadable(fixed)>scoreReadable(text))return fixed;
+        }catch(Exception ignored){}
+        return text;
+    }
+    private boolean looksBroken(String s){
+        if(s==null||s.isEmpty())return false;
+        int bad=0;
+        for(int i=0;i<s.length();i++){
+            char c=s.charAt(i);
+            if(c=='\uFFFD'||c=='Ã'||c=='Â'||c=='Ð'||c=='Ñ'||c=='Р'||c=='С')bad++;
+        }
+        return bad>=2 && bad*10>=s.length();
+    }
+    private int scoreReadable(String s){
+        int score=0;
+        for(int i=0;i<s.length();i++){
+            char c=s.charAt(i);
+            if(c=='\uFFFD'||c=='Ã'||c=='Â'||c=='Ð'||c=='Ñ')score-=3;
+            if(c>='А'&&c<='я')score+=2;
+            if(Character.isLetterOrDigit(c)||Character.isWhitespace(c))score++;
+        }
+        return score;
+    }
     private byte[] readBytes(InputStream in)throws Exception{if(in==null)throw new IOException("Не удалось открыть источник");try{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))>0)o.write(b,0,n);return o.toByteArray();}finally{if(!(in instanceof ZipInputStream))try{in.close();}catch(Exception ignored){}}}
     private String sha(String s)throws Exception{byte[] b=MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));StringBuilder x=new StringBuilder();for(byte v:b)x.append(String.format(Locale.US,"%02x",v));return x.toString();}
     private String title(String name,String text){String first=text.split("\n")[0].trim();return first.length()>80?first.substring(0,80):first.isEmpty()?name:first;}
