@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64, hashlib, json, os, secrets, threading, time, urllib.parse, urllib.request, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import jwt
+from jwt import PyJWKClient
 
 HOST="127.0.0.1"; PORT=1455
 ROOT=Path(__file__).resolve().parent; WEB=ROOT/"web"
@@ -12,6 +14,9 @@ AUTHORIZE_URL="https://auth.openai.com/api/accounts/authorize"
 TOKEN_URL="https://auth.openai.com/api/accounts/oauth/token"
 RESOURCE="https://api.openai.com/v1"
 SCOPE="openid profile email offline_access resource.invoke chatgpt.tokens.use.direct"
+ISSUER="https://auth.openai.com"
+JWKS_URL="https://auth.openai.com/.well-known/jwks.json"
+JWKS=PyJWKClient(JWKS_URL)
 pending={}; lock=threading.Lock()
 
 def b64url(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
@@ -61,6 +66,14 @@ def start_auth():
         if old.get("email"): params["login_hint"]=old["email"]
     with lock: pending[state]={"verifier":verifier,"nonce":nonce,"redirect":redirect}
     return AUTHORIZE_URL+"?"+urllib.parse.urlencode(params)
+def validate_id_token(id_token,client_id,nonce):
+    if not id_token: raise RuntimeError("OpenAI не вернул ID token.")
+    key=JWKS.get_signing_key_from_jwt(id_token).key
+    claims=jwt.decode(id_token,key,algorithms=["RS256","RS384","RS512","ES256","ES384","ES512","EdDSA"],issuer=ISSUER,audience=client_id,leeway=5,options={"require":["sub","exp","iat"]})
+    if claims.get("nonce")!=nonce: raise RuntimeError("ID token nonce не совпадает с OAuth-сеансом.")
+    if not claims.get("sub"): raise RuntimeError("ID token не содержит subject.")
+    return claims
+
 def exchange(code,state,issued_client_id):
     with lock: item=pending.pop(state,None)
     if not item: raise RuntimeError("OAuth state недействителен или уже использован.")
@@ -70,7 +83,8 @@ def exchange(code,state,issued_client_id):
     if "chatgpt.tokens.use.direct" not in scopes:
         raise RuntimeError("Вы вошли, но не разрешили использование ChatGPT plan.")
     if not data.get("access_token"): raise RuntimeError("OpenAI не вернул access token.")
-    creds={"client_id":issued_client_id,"access_token":data["access_token"],"refresh_token":data.get("refresh_token"),
+    claims=validate_id_token(data.get("id_token"),issued_client_id,item["nonce"])
+    creds={"client_id":issued_client_id,"subject":claims["sub"],"issuer":ISSUER,"email":claims.get("email"),"name":claims.get("name"),"access_token":data["access_token"],"refresh_token":data.get("refresh_token"),
            "id_token":data.get("id_token"),"token_type":data.get("token_type","Bearer"),"scope":data.get("scope",""),
            "expires_in":data.get("expires_in",3600),"expires_at":time.time()+int(data.get("expires_in",3600)),
            "saved_at":time.time()}
