@@ -60,9 +60,19 @@ public class MainActivity extends Activity {
     void clear(String title){screen=title;ensurePageMode(false);content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
     void ensurePageMode(boolean chat){
         if(chat){
-            if(pageScroll.getParent()==root){root.removeView(pageScroll);root.addView(content,root.indexOfChild(root.findViewWithTag("ORGANISM_NAV")));}
+            if(pageScroll.getParent()==root){
+                int i=root.indexOfChild(pageScroll);
+                pageScroll.removeView(content);
+                root.removeView(pageScroll);
+                root.addView(content,Math.min(i,root.getChildCount()));
+            }
         }else{
-            if(content.getParent()==root){int i=root.indexOfChild(content);root.removeView(content);root.addView(pageScroll,Math.min(i,root.getChildCount()));}
+            if(content.getParent()==root){
+                int i=root.indexOfChild(content);
+                root.removeView(content);
+                pageScroll.addView(content);
+                root.addView(pageScroll,Math.min(i,root.getChildCount()));
+            }
         }
     }
     void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(18,14,18,14);box.setBackground(bg(Color.WHITE,18));TextView h=tv(title,18,Color.rgb(20,29,44));box.addView(h);TextView t=tv(body,14,Color.rgb(55,63,77));box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,12);content.addView(box,p);}
