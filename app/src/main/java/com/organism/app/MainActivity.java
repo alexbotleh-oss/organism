@@ -32,7 +32,7 @@ public class MainActivity extends Activity {
     static final int CALLBACK_PORT_HINT=1455;
 
     Db db; ImportPipeline importer; ReflexEngine reflex=new ReflexEngine(); ContextEngine contextEngine; ExperienceEngine experienceEngine;
-    LinearLayout root,content; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner;
+    LinearLayout root,content; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner; ScrollView chatScroll;
     Handler main=new Handler(Looper.getMainLooper()); boolean busy=false; String screen="home";
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model=""; long expiresAt=0;
@@ -59,7 +59,56 @@ public class MainActivity extends Activity {
     void clear(String title){screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
     void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(18,14,18,14);box.setBackgroundColor(Color.WHITE);TextView h=tv(title,18,Color.rgb(20,29,44));box.addView(h);TextView t=tv(body,14,Color.rgb(55,63,77));box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,12);content.addView(box,p);}
     void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);}
-    void showChat(){clear("Чат");card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");LinearLayout row=new LinearLayout(this);row.addView(tv("Модель",14,Color.DKGRAY),new LinearLayout.LayoutParams(0,-2,.25f));modelSpinner=new Spinner(this);row.addView(modelSpinner,new LinearLayout.LayoutParams(0,-2,.75f));content.addView(row);chatView=tv(db.chat(),14,Color.rgb(30,36,48));chatView.setBackgroundColor(Color.WHITE);content.addView(chatView,new LinearLayout.LayoutParams(-1,420));chatInput=new EditText(this);chatInput.setHint("Напишите запрос…");chatInput.setMinLines(2);content.addView(chatInput);Button send=bt("Отправить через ORGANISM → GPT");send.setOnClickListener(v->send());content.addView(send);Button ctx=bt("Показать Context Snapshot");ctx.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Context Engine").setMessage(contextEngine.build(chatInput==null?"":chatInput.getText().toString())).setPositiveButton("Закрыть",null).show());content.addView(ctx);if(hasCreds())loadModels();else card("ChatGPT","Подключите аккаунт, чтобы использовать модель. Импорт и база работают локально без подключения.");}
+    void showChat(){
+        clear("Чат");
+        card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");
+        card("Подключение","Агент: ORGANISM\nChatGPT: "+getPrefs().getString("email","не определён")+"\nМодель выбирается ниже.");
+        LinearLayout row=new LinearLayout(this);
+        row.addView(tv("Модель",14,Color.DKGRAY),new LinearLayout.LayoutParams(0,-2,.25f));
+        modelSpinner=new Spinner(this);
+        row.addView(modelSpinner,new LinearLayout.LayoutParams(0,-2,.75f));
+        content.addView(row);
+        chatScroll=new ScrollView(this);
+        chatView=tv(db.chat(),14,Color.rgb(30,36,48));
+        chatView.setTextIsSelectable(true);
+        chatView.setPadding(14,14,14,14);
+        chatView.setBackgroundColor(Color.WHITE);
+        chatScroll.addView(chatView,new ScrollView.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams chatParams=new LinearLayout.LayoutParams(-1,0,1f);
+        chatParams.setMargins(0,8,0,8);
+        content.addView(chatScroll,chatParams);
+        Button copyChat=bt("Копировать чат");
+        copyChat.setOnClickListener(v->copyText("История чата",db.chat()));
+        content.addView(copyChat);
+        chatInput=new EditText(this);
+        chatInput.setHint("Напишите запрос…");
+        chatInput.setMinLines(2);
+        chatInput.setGravity(Gravity.TOP);
+        content.addView(chatInput);
+        Button send=bt("Отправить через ORGANISM → GPT");
+        send.setOnClickListener(v->send());
+        content.addView(send);
+        Button ctx=bt("Показать и скопировать Context Snapshot");
+        ctx.setOnClickListener(v->showContextDialog());
+        content.addView(ctx);
+        if(hasCreds())loadModels();else card("ChatGPT","Подключите аккаунт, чтобы использовать модель. Импорт и база работают локально без подключения.");
+    }
+    void showContextDialog(){
+        String snapshot=contextEngine.build(chatInput==null?"":chatInput.getText().toString());
+        TextView t=tv(snapshot,14,Color.rgb(30,36,48));
+        t.setTextIsSelectable(true);
+        t.setPadding(18,18,18,18);
+        ScrollView sc=new ScrollView(this);sc.addView(t);
+        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.addView(sc,new LinearLayout.LayoutParams(-1,0,1f));
+        Button copy=bt("Копировать контекст");copy.setOnClickListener(v->copyText("Context Snapshot",snapshot));box.addView(copy);
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("Context Engine").setView(box).setPositiveButton("Закрыть",null).create();
+        d.show();
+    }
+    void copyText(String label,String text){
+        ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText(label,text==null?"":text));
+        toast("Скопировано: "+label);
+    }
     void showMemory(){clear("Память");card("Memory Objects","Все знания, решения, заметки, контексты и извлечённые данные хранятся с logical ID, provenance, claim/verification status и confidence.");TextView list=tv(db.recent("memory_objects"),13,Color.DKGRAY);content.addView(list);}
     void showDatabase(){clear("База");String body="Projects: "+db.count("projects")+"\nStates: "+db.count("project_states")+"\nTasks: "+db.count("tasks")+"\nEvents: "+db.count("events")+"\nActions: "+db.count("actions")+"\nResults: "+db.count("results")+"\nVerifications: "+db.count("verifications")+"\nMemory: "+db.count("memory_objects")+"\nRelations: "+db.count("relations")+"\nExperiences: "+db.count("experiences")+"\nRejected paths: "+db.count("rejected_paths")+"\nLoss coverage: "+db.count("loss_coverage");card("Структура хранилища",body);Button mem=bt("Показать память");mem.setOnClickListener(v->showMemory());content.addView(mem);Button exp=bt("Показать опыт");exp.setOnClickListener(v->showExperience());content.addView(exp);Button src=bt("Показать источники");src.setOnClickListener(v->showSources());content.addView(src);Button tasks=bt("Показать задачи");tasks.setOnClickListener(v->showTasks());content.addView(tasks);}
     void showExperience(){clear("Опыт");card("Experience","Опыт не является догмой. Он хранит what happened / tried / worked / failed, confidence и applicability.");content.addView(tv(db.recent("experiences"),13,Color.DKGRAY));}
@@ -71,7 +120,7 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int req,int res,Intent data){super.onActivityResult(req,res,data);if(req==700&&res==RESULT_OK&&data!=null&&data.getData()!=null)importer.importUri(data.getData(),new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка импорта: "+m));}});}
     void showSettings(){clear("Настройки");card("ChatGPT","Sign in with ChatGPT. API key не нужен. Доступ к чатам ChatGPT не предоставляется: ORGANISM ведёт собственную историю и базу.");Button c=bt(hasCreds()?"Переподключить":"Подключить ChatGPT");c.setOnClickListener(v->signIn());content.addView(c);Button out=bt("Выйти из ChatGPT");out.setOnClickListener(v->{clearCreds();showSettings();});content.addView(out);Button backup=bt("Экспорт базы ORGANISM");backup.setOnClickListener(v->backup());content.addView(backup);card("Защита","Удаление памяти проходит через рефлекс защиты; RAW и события не заменяются кратким резюме. Удаление критической памяти автоматически не каскадирует связи.");}
     void backup(){try{File f=new File(getExternalFilesDir(null),"organism-backup.db");copyDb(f);Intent i=new Intent(Intent.ACTION_SEND);i.setType("application/octet-stream");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);i.putExtra(Intent.EXTRA_STREAM,FileProvider.getUriForFile(this,getPackageName()+".files",f));startActivity(Intent.createChooser(i,"Передать резервную копию"));}catch(Exception e){toast("Резервная копия: "+e.getMessage());}}
-    void send(){if(busy||chatInput==null)return;String q=chatInput.getText().toString().trim();if(q.isEmpty())return;if(!hasCreds()){toast("Сначала подключите ChatGPT");return;}busy=true;chatInput.setText("");Map<String,Object> a=new HashMap<>();a.put("claim_status","STATED");a.put("qualified",true);Map<String,Object> c=new HashMap<>();c.put("confidence",1.0);for(ReflexEngine.Result r:reflex.check(c,a))if(r.block){busy=false;toast(r.message);return;}long p=db.project("ORGANISM");db.event("USER_MESSAGE",q,p,0,0,"STATED","VERIFIED");chatView.setText(db.chat()+"\n\nORGANISM → GPT: …");new Thread(()->{try{refreshIfNeeded();String context=contextEngine.build(q);String answer=infer(q,context);db.event("MODEL_OUTPUT",answer,p,0,0,"STATED","NOT_VERIFIED");long mem=db.memory("MODEL_OUTPUT","Ответ на: "+shorten(q,80),answer,p,0,0,"STATED","NOT_VERIFIED",0.5);experienceEngine.recordInteraction(q,answer,p);main.post(()->{busy=false;chatView.setText(db.chat());});}catch(Exception e){db.event("ERROR",e.getMessage()==null?e.toString():e.getMessage(),p,0,0,"STATED","VERIFIED");main.post(()->{busy=false;chatView.setText(db.chat());toast("Ошибка: "+e.getMessage());});}}).start();}
+    void send(){if(busy){toast("Предыдущий запрос ещё выполняется. Дождитесь ответа.");return;}if(chatInput==null)return;String q=chatInput.getText().toString().trim();if(q.isEmpty())return;if(!hasCreds()){toast("Сначала подключите ChatGPT");return;}busy=true;chatInput.setText("");Map<String,Object> a=new HashMap<>();a.put("claim_status","STATED");a.put("qualified",true);Map<String,Object> c=new HashMap<>();c.put("confidence",1.0);for(ReflexEngine.Result r:reflex.check(c,a))if(r.block){busy=false;toast(r.message);return;}long p=db.project("ORGANISM");db.event("USER_MESSAGE",q,p,0,0,"STATED","VERIFIED");chatView.setText(db.chat()+"\n\nORGANISM → GPT: …");new Thread(()->{try{refreshIfNeeded();String context=contextEngine.build(q);String answer=infer(q,context);db.event("MODEL_OUTPUT",answer,p,0,0,"STATED","NOT_VERIFIED");long mem=db.memory("MODEL_OUTPUT","Ответ на: "+shorten(q,80),answer,p,0,0,"STATED","NOT_VERIFIED",0.5);experienceEngine.recordInteraction(q,answer,p);main.post(()->{busy=false;chatView.setText(db.chat());if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));});}catch(Exception e){db.event("ERROR",e.getMessage()==null?e.toString():e.getMessage(),p,0,0,"STATED","VERIFIED");main.post(()->{busy=false;chatView.setText(db.chat());toast("Ошибка: "+e.getMessage());});}}).start();}
     String shorten(String s,int n){return s.length()<=n?s:s.substring(0,n);}
     String infer(String q,String context)throws Exception{if(model.isEmpty())model=chooseModel();JSONObject body=new JSONObject();body.put("model",model);body.put("instructions","Ты работаешь через ORGANISM. Используй переданный контекст условно и применимо. Не выдавай HYPOTHESIS, UNKNOWN, MISSING_DATA или непроверенный опыт за подтверждённые факты.");body.put("input",new JSONArray().put(new JSONObject().put("role","user").put("content","CONTEXT SNAPSHOT:\n"+context+"\n\nUSER REQUEST:\n"+q)));body.put("store",false);body.put("stream",true);HttpURLConnection c=(HttpURLConnection)new URL(API+"/responses").openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(20000);c.setReadTimeout(120000);c.setRequestProperty("Authorization","Bearer "+accessToken);c.setRequestProperty("Content-Type","application/json");c.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));int code=c.getResponseCode();if(code>=400)throw new Exception(readAll(c.getErrorStream()));BufferedReader r=new BufferedReader(new InputStreamReader(c.getInputStream(),StandardCharsets.UTF_8));String line;StringBuilder out=new StringBuilder();boolean completed=false;while((line=r.readLine())!=null){if(!line.startsWith("data:"))continue;String d=line.substring(5).trim();if("[DONE]".equals(d))continue;try{JSONObject e=new JSONObject(d);String type=e.optString("type");if("response.output_text.delta".equals(type))out.append(e.optString("delta"));else if("response.completed".equals(type))completed=true;else if("response.failed".equals(type)){JSONObject rr=e.optJSONObject("response");throw new Exception(rr==null?"response.failed":rr.optString("error","response.failed"));}}catch(JSONException ignored){}}if(!completed)throw new Exception("Поток не завершился response.completed");return out.toString().trim();}
     String chooseModel()throws Exception{listModels();if(model.isEmpty())throw new Exception("Нет доступной модели");return model;}
