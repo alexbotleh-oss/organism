@@ -28,7 +28,7 @@ else v.innerHTML="<h2>Настройки и агент</h2><div class='card'><h3
 bind();updateAgentStatus();
 }
 
-async function bridgeStatus(){try{var r=await fetch("/api/status",{cache:"no-store"});if(!r.ok)return null;return await r.json()}catch(e){return null}}
+async function bridgeStatus(){for(var base of ["","http://127.0.0.1:1455"]){try{var r=await fetch(base+"/api/status",{cache:"no-store"});if(r.ok)return await r.json()}catch(e){}}return null}
 async function callAgent(message,ctx){
 var history=state.messages.slice(0,-1);
 var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:message,context:ctx,history:history})});
