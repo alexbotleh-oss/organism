@@ -22,7 +22,7 @@ public class ProviderManager {
     public List<Provider> all(){return providers;}
     public boolean isConnected(String id){
         if("chatgpt".equals(id)){android.content.SharedPreferences main=ctx.getSharedPreferences("organism",Context.MODE_PRIVATE);return !main.getString("access","").isEmpty() || !main.getString("refresh","").isEmpty();}
-        return p.getBoolean("opened_"+id,false);
+        return false;
     }
     public void markOpened(String id){p.edit().putBoolean("opened_"+id,true).apply();}
 }
