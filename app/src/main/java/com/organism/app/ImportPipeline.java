@@ -88,7 +88,8 @@ public class ImportPipeline {
         }
     }
 
-    private byte[] readZipEntry(ZipInputStream z)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=z.read(b))>0)o.write(b,0,n);return o.toByteArray();}\n    private String pdf(byte[] bytes)throws Exception{PDDocument d=PDDocument.load(new ByteArrayInputStream(bytes));try{return new PDFTextStripper().getText(d);}finally{d.close();}}
+    private byte[] readZipEntry(ZipInputStream z)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=z.read(b))>0)o.write(b,0,n);return o.toByteArray();}
+    private String pdf(byte[] bytes)throws Exception{PDDocument d=PDDocument.load(new ByteArrayInputStream(bytes));try{return new PDFTextStripper().getText(d);}finally{d.close();}}
     private byte[] readBytes(InputStream in)throws Exception{if(in==null)throw new IOException("Не удалось открыть источник");try{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))>0)o.write(b,0,n);return o.toByteArray();}finally{if(!(in instanceof ZipInputStream))try{in.close();}catch(Exception ignored){}}}
     private String sha(String s)throws Exception{byte[] b=MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));StringBuilder x=new StringBuilder();for(byte v:b)x.append(String.format(Locale.US,"%02x",v));return x.toString();}
     private String title(String name,String text){String first=text.split("\n")[0].trim();return first.length()>80?first.substring(0,80):first.isEmpty()?name:first;}
