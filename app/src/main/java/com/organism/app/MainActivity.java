@@ -33,7 +33,7 @@ public class MainActivity extends Activity {
     static final int CALLBACK_PORT_HINT=1455;
 
     Db db; ImportPipeline importer; ReflexEngine reflex=new ReflexEngine(); ContextEngine contextEngine; ExperienceEngine experienceEngine;
-    LinearLayout root,content; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner,providerSpinner; ScrollView chatScroll; ProviderManager providers; String selectedProvider="chatgpt";
+    LinearLayout root,content; ScrollView pageScroll; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner,providerSpinner; ScrollView chatScroll; ProviderManager providers; String selectedProvider="chatgpt";
     Handler main=new Handler(Looper.getMainLooper()); boolean busy=false; String screen="home";
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model=""; long expiresAt=0;
@@ -50,18 +50,26 @@ public class MainActivity extends Activity {
         screenTitle=tv("ОРГАНИЗМ",23,Color.rgb(16,24,39));top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));
         status=tv(hasCreds()?"● ChatGPT подключён":"○ ChatGPT не подключён",12,hasCreds()?Color.rgb(20,130,80):Color.DKGRAY);top.addView(status);
         root.addView(top);
-        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,24); ScrollView pageScroll=new ScrollView(this);pageScroll.addView(content); root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));
+        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,24); pageScroll=new ScrollView(this);pageScroll.addView(content); root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));
         HorizontalScrollView navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
         String[][] items={{"Главная","home"},{"Чат","chat"},{"ИИ","ai"},{"Память","memory"},{"Импорт","import"},{"База","database"},{"Настройки","settings"}};
         for(String[] it:items){Button b=bt(it[0]);b.setOnClickListener(v->navigate(it[1]));nav.addView(b,new LinearLayout.LayoutParams(150,58));}
-        navScroll.addView(nav);root.addView(navScroll);setContentView(root);
+        navScroll.setTag("ORGANISM_NAV");navScroll.addView(nav);root.addView(navScroll);setContentView(root);
     }
     void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("ai".equals(s))showAiProviders();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else showSettings();}
-    void clear(String title){screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
+    void clear(String title){screen=title;ensurePageMode(false);content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
+    void ensurePageMode(boolean chat){
+        if(chat){
+            if(pageScroll.getParent()==root){root.removeView(pageScroll);root.addView(content,root.indexOfChild(root.findViewWithTag("ORGANISM_NAV")));}
+        }else{
+            if(content.getParent()==root){int i=root.indexOfChild(content);root.removeView(content);root.addView(pageScroll,Math.min(i,root.getChildCount()));}
+        }
+    }
     void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(18,14,18,14);box.setBackground(bg(Color.WHITE,18));TextView h=tv(title,18,Color.rgb(20,29,44));box.addView(h);TextView t=tv(body,14,Color.rgb(55,63,77));box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,12);content.addView(box,p);}
     void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);}
     void showChat(){
         clear("Чат");
+        ensurePageMode(true);
         card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");
         card("Исполнитель","ORGANISM — постоянный слой памяти. Ниже выбирается AI-провайдер. Реальный API-вызов сейчас реализован для ChatGPT; веб-провайдеры открываются в браузерной сессии без повторного входа, пока сервис сохраняет сессию.");
         providerSpinner=new Spinner(this); ArrayList<String> providerNames=new ArrayList<>(); for(ProviderManager.Provider p:providers.all())providerNames.add(p.name); ArrayAdapter<String> pa=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,providerNames);pa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);providerSpinner.setAdapter(pa); providerSpinner.setSelection(0); providerSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(pos>=0&&pos<providers.all().size())selectedProvider=providers.all().get(pos).id;}public void onNothingSelected(android.widget.AdapterView<?>p){}}); content.addView(providerSpinner,new LinearLayout.LayoutParams(-1,-2));
