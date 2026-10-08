@@ -21,7 +21,7 @@ public class ProviderManager {
     public ProviderManager(Context c){ctx=c.getApplicationContext();p=c.getSharedPreferences("organism_ai",Context.MODE_PRIVATE);}
     public List<Provider> all(){return providers;}
     public boolean isConnected(String id){
-        if("chatgpt".equals(id))return false;
+        if("chatgpt".equals(id)){android.content.SharedPreferences main=ctx.getSharedPreferences("organism",Context.MODE_PRIVATE);return !main.getString("access","").isEmpty() || !main.getString("refresh","").isEmpty();}
         return p.getBoolean("opened_"+id,false);
     }
     public void markOpened(String id){p.edit().putBoolean("opened_"+id,true).apply();}
