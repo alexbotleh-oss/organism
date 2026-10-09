@@ -142,3 +142,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - First CI run for the diagnostic implementation failed at Java compilation: two literal `\\n` sequences had been inserted between method declarations in `MainActivity.java`.
 - Corrected both separators in commit `78558c8b5bf67bb0dcd226b6a04f41dc06c53520`. This failure is recorded rather than hidden.
 - A new Android build run was triggered for the corrected branch. Result remains pending at this update; inspect the final job result before calling the source buildable.
+
+
+## 2026-10-09 — WL-012 — OAuth diagnostic APK build verified
+
+- **Lifecycle:** VERIFIED (CI build/artifact only) → READY FOR DEVICE DIAGNOSTIC; OAuth behavior remains unverified.
+- **Exact source commit:** `6d5fd748260fedaa5bff5fc9a66b82c6c5246a8b` on `fix/oauth-diagnostic-trace-20261009`.
+- **Build evidence:** Android workflow run `37953256844` completed with conclusion `success`; job `assemble-debug`, step `Build debug APK`, and step `Upload debug APK` all succeeded. https://github.com/alexbotleh-oss/organism/actions/runs/37953256844
+- **Artifact evidence:** `organism-debug-apk` is present, not expired, size 11,348,150 bytes. Artifact ZIP: https://api.github.com/repos/alexbotleh-oss/organism/actions/artifacts/11626284579/zip (GitHub may require authentication).
+- **What this proves:** CI successfully compiled and uploaded a debug APK for the exact diagnostic branch head. It does not prove OAuth succeeds or that the diagnostic screen works on a physical device.
+- **Known regression history:** earlier CI runs failed due to literal escaped newline separators in `MainActivity.java`; the separators were corrected in the source commit above and the exact commit now passes CI. The failures remain recorded in this log.
+- **Data safety/privacy:** no database or saved user data was changed. Diagnostic trace is bounded to 120 lines and must not include authorization codes, tokens, cookies, passwords, raw callback URLs or response bodies.
+- **Status:** APK artifact available; no device installation or login attempt has yet been confirmed.
+- **Next action:** install the artifact on the user's phone, open Settings → “Журнал диагностики авторизации”, perform exactly one login attempt, then copy the trace back for analysis. Do not clear app data, re-import archives, or claim OAuth fixed before examining device evidence.
