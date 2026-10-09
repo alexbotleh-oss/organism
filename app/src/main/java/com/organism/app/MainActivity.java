@@ -74,8 +74,8 @@ public class MainActivity extends Activity {
     void deactivateChatLayout(){if(content.getParent()==root){root.removeView(content);content.setPadding(dp(16),dp(12),dp(16),dp(20));contentScroll.addView(content);root.addView(contentScroll,2,new LinearLayout.LayoutParams(-1,0,1));}}
     void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);Button quickSettings=bt("Настройки и экспорт базы");quickSettings.setOnClickListener(v->showSettings());content.addView(quickSettings);}
     void showQuickMenu(){
-        String[] labels={"Подключить / переподключить ChatGPT","Новый диалог","Копировать текущий диалог","Старая общая история","Context Snapshot","Память","Архив импортированных чатов","Задачи","Источники","Опыт","Проверка импорта","Импорт","База данных","Настройки","Экспорт полного архива"};
-        Runnable[] actions={()->signIn(),()->startNewChat(),()->copyText("История чата",db.chat(activeSessionId)),()->showLegacyChat(),()->showContextDialog(),()->showMemory(),()->showImportedChatArchive(),()->showTasks(),()->showSources(),()->showExperience(),()->showImportAudit(),()->showImport(),()->showDatabase(),()->showSettings(),()->backup()};
+        String[] labels={"Подключить / переподключить ChatGPT","Новый диалог","Копировать текущий диалог","Открыть ChatGPT Web","Старая общая история","Context Snapshot","Память","Архив импортированных чатов","Задачи","Источники","Опыт","Проверка импорта","Импорт","База данных","Настройки","Экспорт полного архива"};
+        Runnable[] actions={()->signIn(),()->startNewChat(),()->copyText("История чата",db.chat(activeSessionId)),()->openPlatformWebOnly(),()->showLegacyChat(),()->showContextDialog(),()->showMemory(),()->showImportedChatArchive(),()->showTasks(),()->showSources(),()->showExperience(),()->showImportAudit(),()->showImport(),()->showDatabase(),()->showSettings(),()->backup()};
         new AlertDialog.Builder(this).setTitle("ORGANISM · Дополнительные функции").setItems(labels,(dialog,which)->actions[which].run()).show();
     }
     long ensureActiveSession(){String key=getPrefs().getString("active_session_key","");if(key.isEmpty()){key="SES-"+UUID.randomUUID().toString();getPrefs().edit().putString("active_session_key",key).apply();}return db.ensureSession(key,db.project("ORGANISM"));}
@@ -121,6 +121,12 @@ public class MainActivity extends Activity {
         Button send=bt("Отправить через ORGANISM → GPT");
         send.setOnClickListener(v->send());
         composer.addView(send,new LinearLayout.LayoutParams(-1,-2));
+        Button web=bt("Подготовить запрос для ChatGPT Web");
+        web.setOnClickListener(v->startPlatformWeb());
+        composer.addView(web,new LinearLayout.LayoutParams(-1,-2));
+        Button pasteWeb=bt("Вставить ответ из ChatGPT Web");
+        pasteWeb.setOnClickListener(v->importPlatformWebAnswer());
+        composer.addView(pasteWeb,new LinearLayout.LayoutParams(-1,-2));
         content.addView(composer,new LinearLayout.LayoutParams(-1,-2));
         if(hasCreds())loadModels();
         else{
@@ -277,6 +283,50 @@ public class MainActivity extends Activity {
     void backupArchive(){if(busy){toast("Сначала дождитесь завершения текущего запроса.");return;}try{File base=new File(getExternalFilesDir(null),"organism-full-archive");if(!base.exists()&&!base.mkdirs())throw new IOException("Не удалось создать каталог архива");File database=new File(base,"organism.db");copyDb(database);File zip=new File(getExternalFilesDir(null),"organism-full-archive.zip");try(ZipOutputStream out=new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zip)))){putZipFile(out,database,"database/organism.db");File privateFiles=getFilesDir();zipDirectory(out,privateFiles,"app-files/");String manifest="ORGANISM PORTABLE ARCHIVE\nformat_version=1\ncreated_at="+db.now()+"\ndatabase=database/organism.db\napp_private_files=app-files/\ncontents=SQLite database (events, sources, memory, experiences, relations, imported chat messages), plus app-private RAW files, events.jsonl and PROJECT_MEMORY.md when present.\nNOTE=This archive is a data export. Safe restore/import on another device must validate schema and integrity before replacing any existing data.\n";out.putNextEntry(new ZipEntry("ARCHIVE_MANIFEST.txt"));out.write(manifest.getBytes(StandardCharsets.UTF_8));out.closeEntry();}android.database.sqlite.SQLiteDatabase check=android.database.sqlite.SQLiteDatabase.openDatabase(database.getAbsolutePath(),null,android.database.sqlite.SQLiteDatabase.OPEN_READONLY);try{android.database.Cursor c=check.rawQuery("PRAGMA integrity_check",null);try{if(!c.moveToFirst()||!"ok".equalsIgnoreCase(c.getString(0)))throw new IOException("Проверка SQLite не пройдена");}finally{c.close();}}finally{check.close();}Intent i=new Intent(Intent.ACTION_SEND);i.setType("application/zip");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);i.putExtra(Intent.EXTRA_STREAM,FileProvider.getUriForFile(this,getPackageName()+".files",zip));startActivity(Intent.createChooser(i,"Передать полный архив ORGANISM"));}catch(Exception e){toast("Полный архив не создан: "+e.getMessage());}}
     void putZipFile(ZipOutputStream out,File file,String name)throws Exception{out.putNextEntry(new ZipEntry(name));try(InputStream in=new BufferedInputStream(new FileInputStream(file))){byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);}out.closeEntry();}
     void zipDirectory(ZipOutputStream out,File dir,String prefix)throws Exception{File[] children=dir.listFiles();if(children==null)return;Arrays.sort(children,Comparator.comparing(File::getName));for(File child:children){if(child.isDirectory()){zipDirectory(out,child,prefix+child.getName()+"/");}else{String name=prefix+child.getName();if(name.equals("app-files/organism.db")||name.endsWith(".tmp"))continue;putZipFile(out,child,name);}}}
+    void openPlatformWebOnly(){
+        Intent i=new Intent(this,PlatformWebActivity.class);
+        i.putExtra(PlatformWebActivity.EXTRA_PROMPT,"");
+        startActivity(i);
+    }
+    void startPlatformWeb(){
+        if(busy){toast("Дождитесь завершения текущего запроса.");return;}
+        if(chatInput==null)return;
+        String q=chatInput.getText().toString().trim();
+        if(q.isEmpty()){toast("Сначала напишите запрос в поле чата.");return;}
+        try{
+            String context=contextEngine.build(q,activeSessionId);
+            String prompt="Ты работаешь через ORGANISM. Используй переданный контекст условно и применимо. Не выдавай HYPOTHESIS, UNKNOWN, MISSING_DATA или непроверенный опыт за подтверждённые факты.\n\nCONTEXT SNAPSHOT:\n"+context+"\n\nUSER REQUEST:\n"+q;
+            String turnId=UUID.randomUUID().toString();
+            getPrefs().edit().putString("platform_pending_prompt",prompt).putString("platform_pending_question",q)
+                .putString("platform_pending_turn_id",turnId).putLong("platform_pending_session_id",activeSessionId).apply();
+            db.event("PLATFORM_WEB_PROMPT_PREPARED","turn_id="+turnId+"; session_id="+activeSessionId+"; prompt_chars="+prompt.length()+"; question_chars="+q.length()+"; status=PREPARED_NOT_SENT",db.project("ORGANISM"),0,0,"USER_STATED","NOT_VERIFIED",turnId,activeSessionId);
+            Intent i=new Intent(this,PlatformWebActivity.class);
+            i.putExtra(PlatformWebActivity.EXTRA_PROMPT,prompt);
+            i.putExtra(PlatformWebActivity.EXTRA_TURN_ID,turnId);
+            startActivity(i);
+        }catch(Exception e){toast("Не удалось подготовить веб-запрос: "+e.getMessage());}
+    }
+    void importPlatformWebAnswer(){
+        String prompt=getPrefs().getString("platform_pending_prompt","");
+        String question=getPrefs().getString("platform_pending_question","");
+        String turnId=getPrefs().getString("platform_pending_turn_id","");
+        long sessionId=getPrefs().getLong("platform_pending_session_id",0);
+        if(prompt.isEmpty()||question.isEmpty()||turnId.isEmpty()){toast("Нет подготовленного веб-запроса. Сначала подготовьте его.");return;}
+        ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if(cm==null||!cm.hasPrimaryClip()||cm.getPrimaryClip()==null||cm.getPrimaryClip().getItemCount()==0){toast("Буфер обмена пуст. Скопируйте ответ в ChatGPT Web и вернитесь сюда.");return;}
+        CharSequence copied=cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+        String answer=copied==null?"":copied.toString().trim();
+        if(answer.isEmpty()||answer.equals(prompt)||answer.equals(question)){toast("В буфере нет ответа модели. Скопируйте именно ответ из ChatGPT Web.");return;}
+        long p=db.project("ORGANISM");
+        db.event("USER_MESSAGE",question,p,0,0,"USER_STATED","NOT_VERIFIED",turnId,sessionId);
+        long src=db.source("MODEL_RESPONSE","ChatGPT Web (manual copy)",null,answer,null,0,turnId);
+        db.event("MODEL_OUTPUT",answer,p,0,src,"MODEL_OUTPUT","NOT_VERIFIED",turnId,sessionId);
+        db.event("PLATFORM_WEB_RESPONSE_IMPORTED","turn_id="+turnId+"; source=clipboard; chars="+answer.length()+"; user-confirmed manual copy; no browser DOM extraction",p,0,src,"STATED","NOT_VERIFIED",turnId,sessionId);
+        getPrefs().edit().remove("platform_pending_prompt").remove("platform_pending_question").remove("platform_pending_turn_id").remove("platform_pending_session_id").apply();
+        if(sessionId==activeSessionId&&chatView!=null){chatView.setText(db.chat(activeSessionId));if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));}
+        toast("Ответ сохранён в историю ORGANISM. Он пока не проверен.");
+    }
+
     // Model output is not experience by itself; reusable experience requires an observed result and a separate check.
     void send(){if(busy){toast("Предыдущий запрос ещё выполняется. Дождитесь ответа.");return;}if(chatInput==null)return;String q=chatInput.getText().toString().trim();if(q.isEmpty())return;if(!hasCreds()){toast("Сначала подключите ChatGPT");return;}busy=true;chatInput.setText("");Map<String,Object> a=new HashMap<>();a.put("claim_status","STATED");a.put("qualified",true);Map<String,Object> c=new HashMap<>();c.put("confidence",1.0);for(ReflexEngine.Result r:reflex.check(c,a))if(r.block){busy=false;toast(r.message);return;}long p=db.project("ORGANISM");String turnId=UUID.randomUUID().toString();db.event("USER_MESSAGE",q,p,0,0,"USER_STATED","NOT_VERIFIED",turnId,activeSessionId);chatView.setText(db.chat(activeSessionId)+"\n\nORGANISM → модель: …");new Thread(()->{try{refreshIfNeeded();String context=contextEngine.build(q,activeSessionId);String answer=infer(q,context);long src=db.source("MODEL_RESPONSE","OpenAI / "+model,null,answer,null,0,turnId);db.event("MODEL_OUTPUT",answer,p,0,src,"MODEL_OUTPUT","NOT_VERIFIED",turnId,activeSessionId);try{db.memory("MODEL_OUTPUT","Ответ на: "+shorten(q,80),answer,p,0,src,"MODEL_OUTPUT","NOT_VERIFIED",0.5);JSONObject experienceMeta=new JSONObject();experienceMeta.put("status","CANDIDATE_UNVERIFIED");experienceMeta.put("turn_id",turnId);experienceMeta.put("source_id",src);experienceMeta.put("model",model);experienceMeta.put("rule","Model output alone is not evidence of success; verify an observable outcome before reuse.");db.experience("Диалоговый ход: "+shorten(q,240),"Модель "+model+" сформировала ответ","", "",p,0.2,"CANDIDATE",experienceMeta.toString());db.event("EXPERIENCE_CANDIDATE_CREATED","turn_id="+turnId+"; status=CANDIDATE_UNVERIFIED; requires outcome verification",p,0,src,"MODEL_OUTPUT","NOT_VERIFIED",turnId);}catch(Exception persistenceWarning){Log.e("ORGANISM","Model answer saved, but optional memory/experience indexing failed for turn "+turnId,persistenceWarning);try{db.event("POST_RESPONSE_PERSISTENCE_WARNING","turn_id="+turnId+"; "+String.valueOf(persistenceWarning.getMessage()),p,0,src,"UNKNOWN","NOT_VERIFIED",turnId,activeSessionId);}catch(Exception logFailure){Log.e("ORGANISM","Could not persist post-response warning",logFailure);}}main.post(()->{busy=false;chatView.setText(db.chat(activeSessionId));if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));});}catch(Exception e){db.event("ERROR",e.getMessage()==null?e.toString():e.getMessage(),p,0,0,"UNKNOWN","NOT_VERIFIED",turnId,activeSessionId);main.post(()->{busy=false;chatView.setText(db.chat(activeSessionId));toast("Ошибка: "+e.getMessage());});}}).start();}
     String shorten(String s,int n){return s.length()<=n?s:s.substring(0,n);}
