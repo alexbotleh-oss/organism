@@ -203,6 +203,7 @@ class OrganismCore:
         );
         CREATE TABLE IF NOT EXISTS conflicts (
             id TEXT PRIMARY KEY,
+            project_id TEXT,
             object_a_type TEXT NOT NULL,
             object_a_id TEXT NOT NULL,
             object_b_type TEXT NOT NULL,
@@ -252,6 +253,9 @@ class OrganismCore:
             source_columns = {r["name"] for r in conn.execute("PRAGMA table_info(source_documents)")}
             if "raw_text" not in source_columns:
                 conn.execute("ALTER TABLE source_documents ADD COLUMN raw_text TEXT")
+            conflict_columns = {r["name"] for r in conn.execute("PRAGMA table_info(conflicts)")}
+            if "project_id" not in conflict_columns:
+                conn.execute("ALTER TABLE conflicts ADD COLUMN project_id TEXT")
             row = conn.execute("SELECT version FROM schema_meta LIMIT 1").fetchone()
             if row is None:
                 conn.execute("INSERT INTO schema_meta(version) VALUES (?)", (SCHEMA_VERSION,))
@@ -470,8 +474,8 @@ class OrganismCore:
         allowed_channels = {"test", "execution", "artifact", "documentation", "manual_check", "user_report", "model_review"}
         if channel not in allowed_channels:
             raise ValueError(f"Unsupported verification channel: {channel}")
-        if channel == "model_review" and outcome == "verified":
-            raise ValueError("A model review cannot independently verify real-world truth")
+        if channel == "model_review" and outcome in {"verified", "failed", "contradicted"}:
+            raise ValueError("A model review may flag a concern, but cannot change real-world truth status")
         if channel == "user_report" and outcome == "verified":
             raise ValueError("A user report is reported evidence; describe what was actually checked")
         if not description.strip():
@@ -501,7 +505,7 @@ class OrganismCore:
                 else:
                     conn.execute("UPDATE experiences SET verification_status='verified',experience_status='validated',updated_at=? WHERE id=?",
                                  (now, object_id))
-            elif outcome in {"failed", "contradicted"}:
+            elif outcome in {"failed", "contradicted"} and channel != "user_report":
                 if object_type == "claim":
                     conn.execute("UPDATE claims SET verification_status='contradicted',claim_status='refuted',updated_at=? WHERE id=?",
                                  (now, object_id))
@@ -565,12 +569,12 @@ class OrganismCore:
         return directive_id
 
     def add_conflict(self, object_a_type: str, object_a_id: str, object_b_type: str,
-                     object_b_id: str, description: str) -> str:
+                     object_b_id: str, description: str, *, project_id: str | None = None) -> str:
         conflict_id = _id("cnf")
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO conflicts(id,object_a_type,object_a_id,object_b_type,object_b_id,description,created_at) VALUES(?,?,?,?,?,?,?)",
-                (conflict_id, object_a_type, object_a_id, object_b_type, object_b_id, description, _now()),
+                "INSERT INTO conflicts(id,project_id,object_a_type,object_a_id,object_b_type,object_b_id,description,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                (conflict_id, project_id, object_a_type, object_a_id, object_b_type, object_b_id, description, _now()),
             )
             self._event(conn, "CONFLICT_OPENED", "organism", "conflict", conflict_id, {"description": description})
         return conflict_id
@@ -595,7 +599,7 @@ class OrganismCore:
         env = environment or {}
         with self._connect() as conn:
             directives = [dict(r) for r in conn.execute(
-                """SELECT * FROM user_directives WHERE active=1 AND (project_id=? OR project_id IS NULL)
+                """SELECT * FROM user_directives WHERE active=1 AND (project_id=? OR (project_id IS NULL AND scope='global'))
                    AND (expires_at IS NULL OR expires_at>?) ORDER BY priority DESC,created_at DESC""",
                 (project_id, _now()),
             )]
@@ -617,7 +621,10 @@ class OrganismCore:
                 item = dict(row)
                 if self._env_compatible(json.loads(item["environment_json"]), env):
                     experiences.append(item)
-            open_conflicts = [dict(r) for r in conn.execute("SELECT * FROM conflicts WHERE status='open'")]
+            open_conflicts = [dict(r) for r in conn.execute(
+                "SELECT * FROM conflicts WHERE status='open' AND (project_id=? OR project_id IS NULL)",
+                (project_id,),
+            )]
             payload = {
                 "core_version": "0.4",
                 "project_id": project_id,
