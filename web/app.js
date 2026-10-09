@@ -29,14 +29,47 @@ bind();updateAgentStatus();
 }
 
 async function bridgeStatus(){for(var base of ["","http://127.0.0.1:1455"]){try{var r=await fetch(base+"/api/status",{cache:"no-store"});if(r.ok)return await r.json()}catch(e){}}return null}
+async function corePost(path,payload){
+ var r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+ var j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error||("HTTP "+r.status));return j;
+}
+async function persistCoreText(name,text,sourceKind,speaker,origin){
+ return corePost("/api/core/import-text",{source_name:name,text:text,source_kind:sourceKind,speaker:speaker,origin:origin,completeness:"unknown"});
+}
+async function buildCoreContext(msg){
+ try{
+  var r=await corePost("/api/core/handoff",{project_id:project().id,task:msg,environment:{platform:"browser-pwa"},model_name:state.settings.agent.model||"ChatGPT bridge",model_version:"unknown"});
+  return {context:{coreHandoff:r.result.payload,project:project(),coreVersion:"0.4"},applicationId:r.result.application_id,coreAvailable:true};
+ }catch(e){
+  return {context:{project:project(),task:msg,coreUnavailable:true,safetyNote:"CORE Handoff unavailable. Do not treat local candidate memories as verified evidence.",verifiedClaims:[],validatedExperiences:[]},applicationId:null,coreAvailable:false};
+ }
+}
 async function callAgent(message,ctx){
-var history=state.messages.slice(0,-1);
-var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:message,context:ctx,history:history})});
-var j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error||("HTTP "+r.status));return j.text;
+ var history=state.messages.slice(0,-1);
+ var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:message,context:ctx,history:history})});
+ var j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error||("HTTP "+r.status));return j.text;
 }
 async function sendChat(){
-if(busy)return;var input=document.getElementById("chatInput"),msg=input.value.trim();if(!msg)return;busy=true;var ctx=contextSnapshot(msg);state.messages.push({id:uid("MSG"),role:"user",text:msg,at:Date.now()});save();render();
-try{var reply=await callAgent(msg,ctx);state.messages.push({id:uid("MSG"),role:"agent",text:reply,at:Date.now(),context:{experienceIds:ctx.relevantExperiences.map(function(e){return e.id}),memoryIds:ctx.memory.map(function(m){return m.id})}});var ev={id:uid("EVT"),projectId:project().id,description:"Запрос агента: "+msg,status:"RECORDED"};state.events.push(ev);var ac={id:uid("ACT"),eventId:ev.id,description:msg,status:"EXECUTED"};state.actions.push(ac);var rs={id:uid("RSL"),actionId:ac.id,resultType:"SUCCESS",description:reply};state.results.push(rs);state.verifications.push({id:uid("VRF"),resultId:rs.id,status:"VERIFIED",description:"Ответ получен через ChatGPT bridge"});var exp={id:uid("EXP"),projectId:project().id,title:"Кандидат опыта: "+msg.slice(0,80),whatHappened:"В текущем разговоре GPT ответил через Организм.",whatTried:msg,whatWorked:reply.slice(0,1200),whatFailed:"",understandingBefore:"",understandingAfter:"Требует проверки перед закреплением.",confidence:.5,type:"CANDIDATE",appliesWhen:"После проверки в похожем контексте",doesNotApplyWhen:"Не считать подтверждённым без проверки",eventId:ev.id,resultId:rs.id};state.experiences.push(exp);state.memories.push({id:uid("MEM"),title:"Диалог: "+msg.slice(0,80),content:"Вопрос:\n"+msg+"\n\nОтвет GPT:\n"+reply.slice(0,3000),status:"CANDIDATE",createdAt:Date.now(),dimensions:{project:project().id,type:"conversation",confidence:.5}});state.relations.push({id:uid("REL"),fromId:exp.id,toId:rs.id,type:"RESULT_OF",dimension:"result"});save();toast("Ответ получен и сохранён Организмом.")}catch(e){state.messages.push({id:uid("MSG"),role:"agent",text:"Ошибка подключения: "+e.message,at:Date.now()});save()}finally{busy=false;render()}
+ if(busy)return;var input=document.getElementById("chatInput"),msg=input.value.trim();if(!msg)return;
+ busy=true;state.messages.push({id:uid("MSG"),role:"user",text:msg,at:Date.now()});save();render();
+ try{
+  var rawUserStored=false;
+  try{await persistCoreText("live-chat-user-"+Date.now()+".txt",msg,"live_chat_message","user","external");rawUserStored=true}catch(rawError){console.warn("CORE RAW user write failed:",rawError.message)}
+  var prepared=await buildCoreContext(msg),ctx=prepared.context;
+  var reply=await callAgent(msg,ctx);
+  try{await persistCoreText("live-chat-assistant-"+Date.now()+".txt",reply,"live_chat_message","assistant","organism_generated")}catch(rawError){console.warn("CORE RAW assistant write failed:",rawError.message)}
+  state.messages.push({id:uid("MSG"),role:"agent",text:reply,at:Date.now(),context:{applicationId:prepared.applicationId,coreAvailable:prepared.coreAvailable}});
+  var ev={id:uid("EVT"),projectId:project().id,description:"Ответ модели получен; проверка результата не выполнена: "+msg,status:"RECORDED"};
+  state.events.push(ev);
+  var ac={id:uid("ACT"),eventId:ev.id,description:msg,status:"PROPOSED_NOT_EXECUTED"};
+  state.actions.push(ac);
+  var rs={id:uid("RSL"),actionId:ac.id,resultType:"MODEL_RESPONSE_NOT_VERIFIED",status:"PENDING_CHECK",description:reply,applicationId:prepared.applicationId};
+  state.results.push(rs);
+  state.memories.push({id:uid("MEM"),title:"Диалог (не проверенное знание): "+msg.slice(0,80),content:"Вопрос:\n"+msg+"\n\nОтвет модели:\n"+reply.slice(0,3000),status:"RAW_DIALOGUE_NOT_KNOWLEDGE",createdAt:Date.now(),dimensions:{project:project().id,type:"dialogue",verification:"unverified"}});
+  state.relations.push({id:uid("REL"),fromId:state.messages[state.messages.length-2].id,toId:state.messages[state.messages.length-1].id,type:"DIALOGUE_TURN",dimension:"provenance"});
+  save();input.value="";toast(rawUserStored?"Ответ сохранён как диалог; проверкой или опытом не считается.":"Ответ получен; не удалось сохранить вопрос в CORE RAW.");
+ }catch(e){state.messages.push({id:uid("MSG"),role:"agent",text:"Ошибка подключения: "+e.message,at:Date.now()});save()}
+ finally{busy=false;render()}
 }
 function createExperienceFromImport(text,filename){
 var source={id:uid("SRC"),type:"TXT",title:filename,content:text.slice(0,200000),createdAt:Date.now()};state.sources.push(source);var lines=text.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean),chunks=[],i,count=0;
