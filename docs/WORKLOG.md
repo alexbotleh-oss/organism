@@ -283,3 +283,15 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no database, imported archives, chat history, credentials, or app preferences touched. The system picker grants access only to the selected attachment URI.
 - **Status:** PARTIAL — implementation committed; compile/CI and device behavior pending.
 - **Next action:** verify the exact commit's Android Actions run; if green, install that exact APK as an update without clearing app data and test image attachment, document attachment, and picker cancellation in ChatGPT Web.
+
+
+## 2026-10-09 — WL-023 — Dedicated web composer layout
+
+- **User feedback:** the embedded ChatGPT page works after the home internet connection was fixed, but the current screen is awkward on a phone: the site input is squeezed by the app's upper controls and Android keyboard. User asked to move toward the previously discussed single ORGANISM input.
+- **Baseline:** branch `fix/oauth-diagnostic-trace-20261009`; file `app/src/main/java/com/organism/app/PlatformWebActivity.java`; attachment-picker fix is in the prior history.
+- **Change:** commit `855a31ede1491fffe3e403b90cbed679a2d5b0f2` removes the large manual-mode notice/action strip/external-browser button from the top of the WebView screen and adds a compact header plus a dedicated multiline ORGANISM composer docked below the web page. Keyboard resize is explicitly requested. The existing prepared prompt is prefilled when provided. Pressing the composer action copies its current text and clearly tells the user that manual paste/send is still required.
+- **Important boundary:** this is the first UI slice, NOT the completed unified conversation transport. It does not yet send into the site's DOM, detect completion, read the answer, or import responses automatically. No hidden web-page automation or session/cookie access was added. The previous external-browser fallback button is removed from this screen to make space for the single composer layout; official external browser remains available through Android/app navigation only if another route exists.
+- **Verification:** GitHub source commit created; exact source read-back, Android CI, and device keyboard/scroll testing are pending. Do not call the unified input/send/receive flow complete.
+- **Data safety:** no database, archive, OAuth credentials, or saved preferences reset. Existing prompt is only prefilled into the composer.
+- **Status:** PARTIAL.
+- **Next action:** inspect the exact source and build result; install on the existing app without clearing data and verify the composer stays visible above the keyboard, the web page remains scrollable, and attachment picker still opens. Then continue with a provider adapter design for supported send/response handling.
