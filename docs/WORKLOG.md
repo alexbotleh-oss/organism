@@ -248,3 +248,14 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no database, imported archive, saved credentials, or app preferences were reset, migrated, or deleted. The external browser opens only the official HTTPS URL; the user must copy/paste manually.
 - **Status:** PARTIAL. Source change committed; build and device behavior pending.
 - **Next action:** confirm CI for the updated branch head. If successful, install the new APK over the existing app without clearing data; tap «Открыть в браузере» and try one harmless test message. Record browser behavior separately from CI.
+
+
+## 2026-10-09 — WL-020 — Multi-provider web-first decision
+
+- **User decision:** use provider web interfaces as the primary way to connect models; keep API as an optional parallel transport.
+- **Initial provider list supplied by user:** Claude (`https://claude.ai/`), DeepSeek (`https://chat.deepseek.com/`), Qwen (`https://chat.qwen.ai/`), Gemini (`https://gemini.google.com/`), Yandex Alice (`https://alice.yandex.ru/`).
+- **Spec updated:** `docs/PLATFORM_WEB_CONNECTOR_MVP_v0.1.md`, commit `db9fb17144762d2caaad7f5175c49e885901c06f`, records provider-independent memory/history, separate provider adapters, manual copy/paste safety boundaries, provenance/status states, and a phased rollout beginning with Claude + DeepSeek.
+- **Implementation status:** no multi-provider code or UI implemented in this step. This is an architecture/continuity decision only. All five providers' device compatibility and sign-in flows remain untested.
+- **Build status at this point:** latest Android CI run discovered in Actions list is run `37977490305`, commit `e872fa9b8eaecc4a8291ce9eef5ff4af7db76de7`, conclusion `success`; that build predates this documentation-only decision commit and includes the external-browser fallback source change. Device verification remains pending.
+- **Safety:** existing API/OAuth code, saved credentials, imported history, database and app preferences unchanged. No site automation, DOM/cookie access or limit bypass.
+- **Next step:** after the user validates the current browser fallback build, implement provider registry + provider picker and the shared manual web connector for Claude and DeepSeek first; add the other three through the same interface after the first vertical slice passes build and device checks.
