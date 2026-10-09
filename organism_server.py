@@ -178,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path=="/api/core/import-legacy":
                 snapshot=body.get("snapshot")
                 if not isinstance(snapshot,dict): raise ValueError("snapshot must be a JSON object")
-                self.send_json({"ok":True,"result":CORE.import_legacy_snapshot(snapshot,source_name=str(body.get("source_name") or "organism-pwa-export.json"))}); return
+                self.send_json({"ok":True,"result":CORE.import_legacy_snapshot(snapshot,source_name=str(body.get("source_name") or "organism-pwa-export.json"),raw_text=body.get("raw_text") if isinstance(body.get("raw_text"),str) else None)}); return
             if parsed.path=="/api/core/claim":
                 result=CORE.add_claim(
                     str(body.get("claim_text") or ""), project_id=body.get("project_id"),
