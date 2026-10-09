@@ -72,9 +72,23 @@ async function sendChat(){
  finally{busy=false;render()}
 }
 function createExperienceFromImport(text,filename){
-var source={id:uid("SRC"),type:"TXT",title:filename,content:text.slice(0,200000),createdAt:Date.now()};state.sources.push(source);var lines=text.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean),chunks=[],i,count=0;
-for(i=0;i<lines.length;i+=8)chunks.push(lines.slice(i,i+8).join("\n"));
-chunks.slice(0,40).forEach(function(c){var low=c.toLowerCase(),neg=/ошиб|слом|потер|не сработ|провал|не удалось|пропал|регресс/.test(low),pos=/успеш|сработал|исправ|готов|запуст|получил|подтверд|работает|решил/.test(low);if(!neg&&!pos)return;var type=neg&&pos?"MIXED":neg?"NEGATIVE":"POSITIVE",id=uid("EXP");state.experiences.push({id:id,projectId:project().id,title:"Опыт из "+filename+" #"+(++count),whatHappened:c.slice(0,700),whatTried:c.slice(0,500),whatWorked:pos?c.slice(0,500):"",whatFailed:neg?c.slice(0,500):"",understandingBefore:"",understandingAfter:"",confidence:.5,type:type,appliesWhen:"Контекст, похожий на источник; требует проверки",doesNotApplyWhen:"Не переносить автоматически без проверки",sourceId:source.id});state.relations.push({id:uid("REL"),fromId:id,toId:source.id,type:"DERIVED_FROM",dimension:"provenance"});state.memories.push({id:uid("MEM"),title:"Опыт: "+filename+" #"+count,content:c.slice(0,900),status:"CANDIDATE",sourceId:source.id,dimensions:{project:project().id,type:"experience",time:Date.now(),confidence:.5}})});save();return count;
+ var source={id:uid("SRC"),type:"TXT",title:filename,content:text,createdAt:Date.now()};state.sources.push(source);
+ var lines=text.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean),chunks=[],i,count=0;
+ for(i=0;i<lines.length;i+=8)chunks.push(lines.slice(i,i+8).join("\n"));
+ chunks.slice(0,40).forEach(function(chunk){
+  var low=chunk.toLowerCase(),marker=/ошиб|слом|потер|не сработ|провал|не удалось|пропал|регресс|успеш|сработал|исправ|готов|запуст|получил|подтверд|работает|решил/.test(low);
+  if(!marker)return;
+  var id=uid("EXP");count++;
+  state.experiences.push({id:id,projectId:project().id,title:"Фрагмент-кандидат из "+filename+" #"+count,
+   whatHappened:chunk.slice(0,700),whatTried:"",whatWorked:"",whatFailed:"",
+   understandingBefore:"",understandingAfter:"Не проверено; извлечён только текстовый фрагмент.",
+   confidence:0,type:"CANDIDATE",appliesWhen:"Требуется семантический разбор и проверка",
+   doesNotApplyWhen:"Не использовать как подтверждённый опыт",sourceId:source.id});
+  state.relations.push({id:uid("REL"),fromId:id,toId:source.id,type:"DERIVED_FROM",dimension:"provenance"});
+  state.memories.push({id:uid("MEM"),title:"Кандидат извлечения: "+filename+" #"+count,content:chunk.slice(0,900),
+   status:"CANDIDATE",sourceId:source.id,dimensions:{project:project().id,type:"extraction_candidate",time:Date.now(),confidence:0}});
+ });
+ save();return count;
 }
 function bind(){
 document.querySelectorAll("[data-view]").forEach(function(b){b.onclick=function(){setView(b.dataset.view)}});
@@ -92,6 +106,11 @@ checkChatGPT:async function(){var s=await bridgeStatus();if(!s){toast("Лока�
 export:function(){var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="organism_pwa_test_backup.json";a.click();URL.revokeObjectURL(a.href)},
 reset:function(){if(confirm("Удалить локальную тестовую базу?")){localStorage.removeItem(KEY);location.reload()}}
 };
-document.getElementById("fileInput").addEventListener("change",async function(e){var f=e.target.files[0];if(!f)return;var n=createExperienceFromImport(await f.text(),f.name);toast("Импорт завершён: найдено кандидатов опыта "+n);setView("knowledge");e.target.value=""});
+document.getElementById("fileInput").addEventListener("change",async function(e){
+ var f=e.target.files[0];if(!f)return;var text=await f.text(),n=createExperienceFromImport(text,f.name),rawSaved=false;
+ try{await persistCoreText(f.name,text,"chat_export","unknown","external");rawSaved=true}catch(err){console.warn("CORE RAW import failed:",err.message)}
+ toast(rawSaved?"RAW сохранён в CORE; фрагментов-кандидатов: "+n+" (это ещё не опыт).":"Локальный импорт сохранён; CORE RAW недоступен. Кандидатов: "+n);
+ setView("knowledge");e.target.value="";
+});
 document.getElementById("modal").addEventListener("click",function(e){if(e.target.id==="modal")closeModal()});
 render();
