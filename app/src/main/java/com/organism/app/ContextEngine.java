@@ -86,20 +86,32 @@ public final class ContextEngine {
         if(q.isEmpty())return;
         Cursor c=null;
         try{
-            String[] terms=q.split("[^\\p{L}\\p{N}]+");
+            LinkedHashSet<String> uniqueTerms=new LinkedHashSet<>();
+            for(String term:q.split("[^\\p{L}\\p{N}]+")){
+                String t=term.toLowerCase(Locale.ROOT);
+                if(t.length()>=2)uniqueTerms.add(t);
+            }
+            if(uniqueTerms.isEmpty())return;
+            ArrayList<String> terms=new ArrayList<>(uniqueTerms);
             StringBuilder sql=new StringBuilder("SELECT m.logical_id,m.title,m.content,m.claim_status,m.verification_status,m.confidence,m.project_id FROM memory_search s JOIN memory_objects m ON m.id=s.memory_id WHERE m.memory_status='ACTIVE' AND m.availability_level!='DELETED' AND (m.project_id=? OR m.project_id IS NULL) AND (");
             ArrayList<String> args=new ArrayList<>();
             args.add(""+project);
             int added=0;
             for(String term:terms){
-                if(term.length()<2)continue;
                 if(added++>0)sql.append(" OR ");
                 sql.append("(s.title LIKE ? OR s.content LIKE ?)");
                 args.add("%"+term+"%");
                 args.add("%"+term+"%");
             }
             if(added==0)return;
-            sql.append(") ORDER BY m.priority DESC,m.updated_at DESC LIMIT 40");
+            sql.append(") ORDER BY (");
+            for(int i=0;i<terms.size();i++){
+                if(i>0)sql.append("+");
+                sql.append("(CASE WHEN s.title LIKE ? OR s.content LIKE ? THEN 1 ELSE 0 END)");
+                args.add("%"+terms.get(i)+"%");
+                args.add("%"+terms.get(i)+"%");
+            }
+            sql.append(") DESC,m.priority DESC,m.updated_at DESC LIMIT 120");
             c=db.query(sql.toString(),args.toArray(new String[0]));
             while(c.moveToNext()){
                 String text=(nvl(c.getString(1),"")+" "+nvl(c.getString(2),"")).toLowerCase(Locale.ROOT);
