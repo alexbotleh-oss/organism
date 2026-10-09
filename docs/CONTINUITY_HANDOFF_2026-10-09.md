@@ -221,3 +221,14 @@ The prior handoff said CI was pending because the first status helper returned n
 - **Current truth:** code compiles and the debug APK artifact was uploaded. This does not prove WebView login/clipboard flow on a real phone.
 - Work-log correction: WL-018, commit `a396d01f4373a0b5bd42558a7083cdcb554b2c45`.
 - **Next:** download the artifact from the successful Actions run and install it as an update without clearing app data. Test the WebView login and manual prompt/response flow once. If embedded WebView login is blocked, stop and use an official browser handoff rather than bypassing platform controls.
+
+
+## Handoff update — ChatGPT Web controls unusable in embedded WebView (2026-10-09)
+
+- **Latest user observation:** typing works inside the embedded ChatGPT page, but tapping the right-side control does not send and appears to change/refresh the starter question; the left pale-brown control does not respond. The exact cause is not yet established.
+- **Source change:** `4d30ca7a61edbbe3c6346b46368141e67d134df6` adds an explicit «Открыть в браузере» action in `PlatformWebActivity.java`, opening the official `https://chatgpt.com/` URL via Android's external-browser intent. Existing in-WebView controls remain available; prompt/response copy-paste remains manual.
+- **Work log:** WL-019 appended in commit `bfe5581891d5982a53d820285e7415c8ea649403`.
+- **Verification:** source update and read-back succeeded. CI for the app change is not yet verified; the fallback button has not been tested on the phone.
+- **Safety:** no database, imported chat archive, app preferences, OAuth credentials, or user data was cleared or migrated. No JS injection, DOM/cookie reading, automated Send action, or usage-limit bypass was added.
+- **Current status:** PARTIAL — fallback implemented in source; build/device test pending.
+- **Next action:** inspect Actions for the latest push build. If green, install the artifact as an update without clearing app data, test «Открыть в браузере», then manually send one harmless test message in the official browser and report the result.
