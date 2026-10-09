@@ -253,3 +253,12 @@ The prior handoff said CI was pending because the first status helper returned n
 - **Safety:** read-only archive UI/query update. No database schema or imported rows changed; no re-import, reset, credential change, or RAW deletion.
 - **Known limits:** title-only match opens page 1; result count cap remains 500; Android SQLite runtime and on-device navigation are unverified.
 - **Next action:** check run `https://github.com/alexbotleh-oss/organism/actions/runs/37980569567`. If successful, use the matching APK to test body search and a match beyond message 100, as well as title-only/no-match. Then record actual device feedback before moving to the multi-provider web connector.
+
+## Handoff — WebView attachment picker (2026-10-09)
+
+- **User report:** ChatGPT Web's attachment button inside ORGANISM did not open a file-selection window even after a long wait. The screenshot was successfully sent later from the normal browser, distinguishing this from a general inability to access files on the phone.
+- **Implementation:** `0a37c6785645bdb80a2b855a2235526f2116e749` adds `WebChromeClient.onShowFileChooser()` and passes selected URI results back to WebView via `FileChooserParams.parseResult()`. Pending callbacks are cancelled safely; no broad storage permission was added.
+- **Current branch:** `fix/oauth-diagnostic-trace-20261009`; the implementation commit is followed by the work-log commit. Check the live branch head and Actions before distributing an APK.
+- **Verification boundary:** source change only so far. Android CI/build and actual device selection/cancellation are not yet verified. Do not tell the user it is fixed until device-tested.
+- **Data safety:** no database or user data modified; no archive re-import or reset.
+- **Next concrete action:** check CI for the latest head, then test selecting an image, selecting a document, and cancelling the picker on the existing app installation without clearing data.
