@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(18,12,18,8);
         screenTitle=tv("ОРГАНИЗМ",23,Color.rgb(16,24,39));top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));
         status=tv(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён",12,Color.DKGRAY);top.addView(status);
+        Button quick=bt("⋮");quick.setContentDescription("Быстрые действия");quick.setOnClickListener(v->showQuickMenu());top.addView(quick,new LinearLayout.LayoutParams(48,48));
         root.addView(top);
         content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,80);
         ScrollView scroll=new ScrollView(this);scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
@@ -58,7 +59,12 @@ public class MainActivity extends Activity {
     void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else showSettings();}
     void clear(String title){screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
     void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(18,14,18,14);box.setBackgroundColor(Color.WHITE);TextView h=tv(title,18,Color.rgb(20,29,44));box.addView(h);TextView t=tv(body,14,Color.rgb(55,63,77));box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,12);content.addView(box,p);}
-    void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);}
+    void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);Button quickSettings=bt("Настройки и экспорт базы");quickSettings.setOnClickListener(v->showSettings());content.addView(quickSettings);}
+    void showQuickMenu(){
+        String[] labels={"Чат","Память","Задачи","Источники","Опыт","Проверка импорта","Импорт","Настройки","Экспорт базы"};
+        Runnable[] actions={()->showChat(),()->showMemory(),()->showTasks(),()->showSources(),()->showExperience(),()->showImportAudit(),()->showImport(),()->showSettings(),()->backup()};
+        new AlertDialog.Builder(this).setTitle("ORGANISM — быстрые действия").setItems(labels,(dialog,which)->actions[which].run()).show();
+    }
     void showChat(){
         clear("Чат");
         card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");
