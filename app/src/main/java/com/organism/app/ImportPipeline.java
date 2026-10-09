@@ -107,12 +107,12 @@ public class ImportPipeline {
             ArrayList<String> ordered=orderChatNodes(nodes);
             String currentNode=conversation.optString("current_node","");
             StringBuilder transcript=new StringBuilder();
-            transcript.append("CHAT EXPORT STRUCTURE v1\\n")
-                    .append("conversation_id: ").append(conversation.optString("conversation_id","UNKNOWN")).append("\\n")
-                    .append("title: ").append(title).append("\\n")
-                    .append("current_node: ").append(currentNode.isEmpty()?"UNKNOWN":currentNode).append("\\n")
-                    .append("node_count: ").append(nodes.size()).append("\\n")
-                    .append("ordering: parent/children traversal; disconnected nodes sorted by message time and node id\\n\\n");
+            transcript.append("CHAT EXPORT STRUCTURE v1\n")
+                    .append("conversation_id: ").append(conversation.optString("conversation_id","UNKNOWN")).append("\n")
+                    .append("title: ").append(title).append("\n")
+                    .append("current_node: ").append(currentNode.isEmpty()?"UNKNOWN":currentNode).append("\n")
+                    .append("node_count: ").append(nodes.size()).append("\n")
+                    .append("ordering: parent/children traversal; disconnected nodes sorted by message time and node id\n\n");
 
             int messageCount=0;
             for(String nodeId:ordered){
@@ -126,10 +126,10 @@ public class ImportPipeline {
                         .append(" parent=").append(parent)
                         .append(" children=").append(childIds)
                         .append(" current=").append(nodeId.equals(currentNode))
-                        .append("]\\n");
+                        .append("]\n");
 
                 if(message==null){
-                    transcript.append("[STRUCTURAL NODE WITHOUT MESSAGE]\\n\\n");
+                    transcript.append("[STRUCTURAL NODE WITHOUT MESSAGE]\n\n");
                     db.event("CHAT_NODE_IMPORTED","conversation="+title+"; node="+nodeId+
                             "; parent="+parent+"; children="+childIds+"; message=none",
                             project,0,source,"STATED","NOT_VERIFIED");
@@ -150,8 +150,8 @@ public class ImportPipeline {
                         .append(authorName.isEmpty()?"":" | author: "+authorName)
                         .append(" | time: ").append(timestamp)
                         .append(channel.isEmpty()?"":" | channel: "+channel)
-                        .append("\\n")
-                        .append(role).append(": ").append(body).append("\\n\\n");
+                        .append("\n")
+                        .append(role).append(": ").append(body).append("\n\n");
 
                 // Store structural provenance separately from semantic interpretation.
                 // Imported text is not promoted to verified knowledge or experience.
@@ -239,7 +239,7 @@ public class ImportPipeline {
         if(parts==null)return content.toString();
         StringBuilder body=new StringBuilder();
         for(int i=0;i<parts.length();i++){
-            if(i>0)body.append("\\n");
+            if(i>0)body.append("\n");
             Object part=parts.opt(i);
             if(part instanceof String)body.append((String)part);
             else if(part==null||part==JSONObject.NULL)body.append("[NULL PART]");
