@@ -38,11 +38,17 @@ public class PlatformWebActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
         root.setFocusableInTouchMode(true);
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int topInset = insets.getSystemWindowInsetTop();
+            int bottomInset = insets.getSystemWindowInsetBottom();
+            view.setPadding(0, topInset, 0, bottomInset);
+            return insets;
+        });
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(12), dp(4), dp(8), dp(4));
+        header.setPadding(dp(12), dp(4), dp(12), dp(4));
         TextView title = new TextView(this);
         title.setText("ORGANISM · ChatGPT");
         title.setTextSize(16);
@@ -98,7 +104,7 @@ public class PlatformWebActivity extends Activity {
         LinearLayout composer = new LinearLayout(this);
         composer.setOrientation(LinearLayout.HORIZONTAL);
         composer.setGravity(Gravity.BOTTOM);
-        composer.setPadding(dp(8), dp(5), dp(8), dp(8));
+        composer.setPadding(dp(12), dp(8), dp(12), dp(12));
         composer.setBackgroundColor(Color.rgb(248, 249, 251));
         EditText input = new EditText(this);
         input.setHint("Сообщение для ChatGPT…");
@@ -130,11 +136,14 @@ public class PlatformWebActivity extends Activity {
             clipboard.setPrimaryClip(ClipData.newPlainText("ORGANISM prompt", text));
             Toast.makeText(this, "Текст скопирован. Вставь его в поле ChatGPT и отправь на сайте. Автоматическая отправка пока не реализована.", Toast.LENGTH_LONG).show();
         });
-        composer.addView(send, new LinearLayout.LayoutParams(-2, dp(52)));
+        LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(dp(112), dp(52));
+        sendParams.leftMargin = dp(8);
+        composer.addView(send, sendParams);
         root.addView(composer, new LinearLayout.LayoutParams(-1, -2));
 
         setContentView(root);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        root.requestApplyInsets();
         webView.loadUrl("https://chatgpt.com/");
     }
 
