@@ -181,3 +181,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Safety:** observing/reporting is distinct from permission to edit, commit or perform destructive actions. No app code, database, credentials or user data changed. No tests/build/device validation were run for this decision.
 - **Decision document:** docs/MOBILE_FIRST_EVENT_OBSERVER_DECISION_v0.1.md, commit eb190254ff1f25543175f13ba14baa7572568a3d.
 - **Next:** check CI run 37955125073 for commit 8396fc6b29661f14bbe80dd16fbb86f6a91b808f, then define acceptance criteria and choose webhook vs polling before implementation.
+
+
+## 2026-10-09 — WL-015 — OAuth success confirmed on Android device
+
+- **Lifecycle:** VERIFIED (OAuth flow on user's device) → PARTIAL (visible browser completion/return UX still imperfect).
+- **Goal:** use the latest redacted trace to identify the actual OAuth stopping point instead of inferring from the browser spinner.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`; diagnostic source commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f`; Android CI run `37955125073` passed and uploaded `organism-debug-apk` (11,348,423 bytes; SHA-256 `ea6cc90aa9e4c0d430063517fe9d413f62318b5ca5bb7dd85d5433d4f3dd029a`).
+- **User device evidence:** user waited about three minutes and then switched away from the browser; ORGANISM reported that authorization had succeeded. Trace shows listener READY; callback received at 20:42:32.601; OAuth state matched; authorization code present (value redacted); token endpoint HTTP 200; token exchange success; ID token signature/issuer/audience/exp/nonce validation success; required scope granted; credentials saved locally; `AUTH_COMPLETE | SUCCESS` at 20:42:35.259.
+- **Interpretation:** the OAuth authorization/code callback/token exchange/ID-token validation/persistence path completed successfully on the user's device. The supplied trace does not show an OAuth failure. Browser spinner/slow visual completion and the need to switch away remain a UX/handoff issue; this trace alone does not prove whether the browser page itself stopped loading, nor does it prove that a subsequent authenticated model request works.
+- **Verification:** real-device OAuth flow confirmed by user-provided trace. This is distinct from CI; CI for the exact diagnostic commit also passed at https://github.com/alexbotleh-oss/organism/actions/runs/37955125073. No independent authenticated chat/model request was reported in this trace.
+- **Data safety/privacy:** trace contains no exposed code/token values. No DB, imported archive, saved credentials, or app data was reset/migrated. OAuth scopes, redirect URI and auth behavior were not changed during this diagnostic step.
+- **Status:** OAuth handshake and local credential persistence are device-confirmed for this attempt. Browser completion/return UX and post-authenticated-request behavior remain unverified.
+- **Next action:** inspect the post-auth app state and authenticated-request path without clearing app data; separately reproduce/observe browser completion/return behavior only if it remains a user-facing problem. Do not alter the successful OAuth exchange speculatively.
