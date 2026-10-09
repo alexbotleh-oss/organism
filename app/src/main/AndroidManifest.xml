@@ -6,6 +6,7 @@
         android:label="ОРГАНИЗМ"
         android:allowBackup="false"
         android:supportsRtl="true">
+        <activity android:name=".PlatformWebActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".MainActivity" android:launchMode="singleTask" android:screenOrientation="portrait" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
