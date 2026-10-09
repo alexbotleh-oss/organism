@@ -137,6 +137,7 @@ public class ImportPipeline {
     private void importZip(File zipFile,String displayName)throws Exception{
         int files=0,conversations=0,messagesBefore=(int)db.count("memory_objects");boolean foundConversationFile=false;
         long project=db.project("ORGANISM");
+        long rawSource=db.source("CHAT_EXPORT_RAW",displayName,zipFile.getAbsolutePath(),null,shaFile(zipFile));
         try(ZipInputStream z=new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)))){
             ZipEntry entry;
             while((entry=z.getNextEntry())!=null){
@@ -155,18 +156,15 @@ public class ImportPipeline {
             }
         }
         if(!foundConversationFile)throw new IOException("В ZIP не найден conversations.json. Выбери исходный ZIP «Экспорт данных ChatGPT», а не отдельный HTML/другой архив.");
-        long raw=db.source("CHAT_EXPORT_RAW",displayName,zipFile.getAbsolutePath(),null,sha(displayName+":"+zipFile.length()+":"+zipFile.lastModified()));
         int messagesAfter=(int)db.count("memory_objects");
-        db.event("IMPORT","ChatGPT ZIP завершён: "+displayName+"; files="+files+"; conversations="+conversations+"; memory_delta="+(messagesAfter-messagesBefore),project,0,raw,"STATED","VERIFIED");
-        appendEvent("CHAT_ZIP_IMPORTED",displayName,raw);writeSnapshot(project);
+        db.event("IMPORT","ChatGPT ZIP завершён: "+displayName+"; files="+files+"; conversations="+conversations+"; memory_delta="+(messagesAfter-messagesBefore),project,0,rawSource,"STATED","VERIFIED");
+        appendEvent("CHAT_ZIP_IMPORTED",displayName,rawSource);writeSnapshot(project);
         lastZipSummary="Найдено бесед: "+conversations+"; обработано файлов: "+files+". Исходный ZIP сохранён в RAW.";
     }
 
-    private int parseChatJsonStream(String path,InputStream stream,String archiveName)throws Exception{
+    private int parseChatJsonStream(String path,InputStream stream,String archiveName,long rawSourceId)throws Exception{
         final long project=db.project("ORGANISM");
-        java.security.MessageDigest digest=MessageDigest.getInstance("SHA-256");
-        java.security.DigestInputStream digested=new java.security.DigestInputStream(stream,digest);
-        BufferedReader reader=new BufferedReader(new InputStreamReader(digested,StandardCharsets.UTF_8),64*1024);
+        BufferedReader reader=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8),64*1024);
         boolean inString=false,escaped=false,started=false,closed=false;int objectDepth=0,imported=0;StringBuilder object=new StringBuilder();int ch;
         while((ch=reader.read())!=-1){char c=(char)ch;
             if(!started){if(c=='['){started=true;}continue;}
