@@ -170,6 +170,7 @@ class Handler(BaseHTTPRequestHandler):
                     str(body.get("text") or ""),
                     source_kind=str(body.get("source_kind") or "chat_export"),
                     speaker=str(body.get("speaker") or "unknown"),
+                    origin=str(body.get("origin") or "external"),
                     completeness=str(body.get("completeness") or "unknown"),
                     metadata=body.get("metadata") if isinstance(body.get("metadata"),dict) else {},
                 )
