@@ -114,7 +114,46 @@ public class MainActivity extends Activity {
     void showExperience(){clear("Опыт");card("Experience","Опыт не является догмой. Он хранит what happened / tried / worked / failed, confidence и applicability.");content.addView(tv(db.recent("experiences"),13,Color.DKGRAY));}
     void showSources(){clear("Источники");card("Provenance","RAW сохраняется отдельно. Каждый импорт получает source record и checksum.");content.addView(tv(db.recent("sources"),13,Color.DKGRAY));}
     void showTasks(){clear("Задачи");card("Задачи","DONE не устанавливается автоматически как подтверждённое завершение.");content.addView(tv(db.recent("tasks"),13,Color.DKGRAY));}
-    void showImport(){clear("Импорт");card("Источник → RAW → разбор → объекты → связи","Поддерживаются TXT, Markdown, PDF, URL, ChatGPT ZIP и вставленный текст. RAW сохраняется в app-private storage, provenance — в sources.");Button file=bt("📄 Выбрать TXT / MD / PDF / ZIP");file.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,700);});content.addView(file);Button url=bt("🔗 Импортировать по ссылке");url.setOnClickListener(v->urlDialog());content.addView(url);Button paste=bt("📋 Вставить текст");paste.setOnClickListener(v->pasteDialog());content.addView(paste);Button info=bt("Что сохраняется");info.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Pipeline").setMessage("RAW\n↓\nИсточник + checksum + provenance\n↓\nСобытия\n↓\nMemory Objects + facets\n↓\nRelations\n↓\nContext Engine\n↓\nGPT\n↓\nExperience / change history").setPositiveButton("OK",null).show());content.addView(info);}
+    void showImport(){clear("Импорт");card("Источник → RAW → разбор → объекты → связи","Поддерживаются TXT, Markdown, PDF, URL, ChatGPT ZIP и вставленный текст. RAW сохраняется в app-private storage, provenance — в sources.");Button audit=bt("🔎 Проверить, что импортировано");audit.setOnClickListener(v->showImportAudit());content.addView(audit);Button file=bt("📄 Выбрать TXT / MD / PDF / ZIP");file.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,700);});content.addView(file);Button url=bt("🔗 Импортировать по ссылке");url.setOnClickListener(v->urlDialog());content.addView(url);Button paste=bt("📋 Вставить текст");paste.setOnClickListener(v->pasteDialog());content.addView(paste);Button info=bt("Что сохраняется");info.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Pipeline").setMessage("RAW\n↓\nИсточник + checksum + provenance\n↓\nСобытия\n↓\nMemory Objects + facets\n↓\nRelations\n↓\nContext Engine\n↓\nGPT\n↓\nExperience / change history").setPositiveButton("OK",null).show());content.addView(info);}
+    void showImportAudit(){
+        clear("Проверка импорта");
+        card("Контроль импорта чатов","Здесь показываются реальные записи SQLite, а не только сообщение об успешном импорте. Сравните количество узлов и сообщений с исходным экспортом.");
+        android.database.Cursor raw=db.query("SELECT COUNT(*),COALESCE(SUM(LENGTH(raw_text)),0) FROM sources WHERE source_type='CHAT_EXPORT_RAW'",null);
+        long rawCount=0,rawChars=0;if(raw.moveToFirst()){rawCount=raw.getLong(0);rawChars=raw.getLong(1);}raw.close();
+        android.database.Cursor conv=db.query("SELECT COUNT(*) FROM sources WHERE source_type='CHAT_EXPORT_CONVERSATION'",null);
+        long conversations=0;if(conv.moveToFirst())conversations=conv.getLong(0);conv.close();
+        android.database.Cursor messages=db.query("SELECT COUNT(*) FROM memory_objects WHERE kind='CHAT_MESSAGE'",null);
+        long messageObjects=0;if(messages.moveToFirst())messageObjects=messages.getLong(0);messages.close();
+        android.database.Cursor events=db.query("SELECT COUNT(*) FROM events WHERE kind='CHAT_MESSAGE_IMPORTED'",null);
+        long importedEvents=0;if(events.moveToFirst())importedEvents=events.getLong(0);events.close();
+        card("Сводка хранилища","RAW-файлов ChatGPT: "+rawCount+"\nОбъектов бесед: "+conversations+"\nСохранённых сообщений: "+messageObjects+"\nСобытий импорта сообщений: "+importedEvents+"\nСимволов в RAW: "+rawChars+"\n\nВажно: повторный импорт пока может создавать дубликаты. Эти числа — количество записей в базе, а не число уникальных сообщений.");
+        android.database.Cursor c=db.query("SELECT s.id,s.source_name,s.external_id,s.checksum,(SELECT COUNT(*) FROM events e WHERE e.source_id=s.id AND e.kind='CHAT_MESSAGE_IMPORTED'),(SELECT COUNT(*) FROM memory_objects m WHERE m.source_id=s.id AND m.kind='CHAT_MESSAGE'),(SELECT description FROM events e WHERE e.source_id=s.id AND e.kind='CHAT_IMPORTED' ORDER BY e.id DESC LIMIT 1) FROM sources s WHERE s.source_type='CHAT_EXPORT_CONVERSATION' ORDER BY s.id DESC LIMIT 100",null);
+        if(!c.moveToFirst()){c.close();card("Беседы","Импортированные беседы не найдены. Выберите ChatGPT ZIP на экране «Импорт».");Button back=bt("← Назад к импорту");back.setOnClickListener(v->showImport());content.addView(back);return;}
+        do{
+            long id=c.getLong(0);String title=c.getString(1);String conversationId=c.getString(2);String checksum=c.getString(3);long eventCount=c.getLong(4);long memoryCount=c.getLong(5);String summary=c.getString(6);
+            String label=(title==null?"Без названия":title)+"\nconversation_id: "+(conversationId==null||conversationId.isEmpty()?"не указан":conversationId)+"\nСобытий: "+eventCount+" | объектов сообщений: "+memoryCount+"\n"+(summary==null?"Нет итоговой записи CHAT_IMPORTED":summary)+"\nSHA-256 беседы: "+(checksum==null?"нет":checksum);
+            Button b=bt("Открыть: "+(title==null?"Беседа":title)+" ("+memoryCount+" сообщений)");
+            b.setOnClickListener(v->showImportedConversation(id,title==null?"Беседа":title));
+            content.addView(b);TextView details=tv(label,12,Color.DKGRAY);details.setTextIsSelectable(true);content.addView(details);
+        }while(c.moveToNext());
+        c.close();
+        Button sources=bt("Открыть список источников");sources.setOnClickListener(v->showSources());content.addView(sources);
+    }
+    void showImportedConversation(long sourceId,String title){
+        clear("Проверка беседы");
+        Button back=bt("← К списку импортов");back.setOnClickListener(v->showImportAudit());content.addView(back);
+        card(title,"Фрагменты ниже прочитаны из SQLite. Роль, node ID, parent/children и время взяты из сохранённых объектов. Это проверка фактического содержимого, а не оценка смысловой точности.");
+        android.database.Cursor c=db.query("SELECT title,content,claim_status,verification_status,source_id FROM memory_objects WHERE kind='CHAT_MESSAGE' AND source_id=? ORDER BY id ASC",new String[]{""+sourceId});
+        int count=0;
+        while(c.moveToNext()){
+            count++;String head=c.getString(0);String body=c.getString(1);
+            TextView item=tv("\\n"+head+"\\n"+body+"\\nСтатус: "+c.getString(2)+" / "+c.getString(3)+" | source_id="+c.getString(4),13,Color.rgb(35,43,58));
+            item.setTextIsSelectable(true);item.setPadding(12,12,12,12);item.setBackgroundColor(Color.WHITE);content.addView(item);
+        }
+        c.close();
+        if(count==0)card("Нет сообщений","Для этой беседы не найдены объекты CHAT_MESSAGE. Это признак неполного импорта или несоответствия source_id.");
+        else card("Итого","Отображено "+count+" объектов сообщений. Сверьте фрагменты начала, середины и конца с исходным экспортом. Для длинной беседы список может быть большим.");
+    }
     void urlDialog(){EditText e=new EditText(this);e.setHint("https://…");new AlertDialog.Builder(this).setTitle("Импорт URL").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Импортировать",(d,w)->{String u=e.getText().toString().trim();if(!u.isEmpty())importer.importUrl(u,new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
     void pasteDialog(){EditText e=new EditText(this);e.setMinLines(10);e.setGravity(Gravity.TOP);new AlertDialog.Builder(this).setTitle("Вставить текст").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Сохранить",(d,w)->{importer.importText("Вставленный текст",e.getText().toString(),new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
     @Override protected void onActivityResult(int req,int res,Intent data){super.onActivityResult(req,res,data);if(req==700&&res==RESULT_OK&&data!=null&&data.getData()!=null)importer.importUri(data.getData(),new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка импорта: "+m));}});}
