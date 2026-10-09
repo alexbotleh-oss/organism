@@ -74,3 +74,15 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Boundary:** this proves CI compilation and artifact upload for the exact code commit, not that the feature works on the user's phone or that previously imported records are complete. No real-device test or database inspection was performed.
 - **Data safety:** no user database touched; no archive re-import requested or performed.
 - **Next:** obtain/inspect the generated APK artifact, then perform device validation using the existing database; do not claim device confirmation until the user sees the archive search and transcript work.
+
+
+## 2026-10-09 — WL-007 — Keep empty duplicate rows out of archive UI
+
+- **Lifecycle:** CHANGED; CI for this follow-up commit not yet observed.
+- **Goal:** avoid showing empty duplicate source records in the new conversation browser if an older app build already created them.
+- **Starting point:** application code commit `fc3acbe57d745de04953b55cac8e5035d0357f1c`, which passed CI; branch head before this patch was the documentation handoff commit.
+- **Change:** commit `bd0653fb2195997cfb7df8915d6cac8ebd86fc41` adds `HAVING COUNT(m.id)>0` to the conversation archive query. It hides source rows that have no linked chat messages without deleting or changing any database records.
+- **Verification:** fetched the file back from GitHub and confirmed the query predicate is present. No build result yet for this follow-up commit; no device test.
+- **Data safety:** read-only query/UI change; no user records are modified or deleted.
+- **Status:** PARTIAL. Previous commit build passed, but this additional UI change still needs its own CI result. Existing records are preserved.
+- **Next:** confirm Android CI for `bd0653fb2195997cfb7df8915d6cac8ebd86fc41`; then test the updated APK on the existing phone/database without re-importing the ZIP.
