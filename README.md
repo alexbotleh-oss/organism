@@ -51,7 +51,7 @@ Bridge — отдельный экспериментальный контур, �
 gradle --no-daemon :app:assembleDebug
 ```
 
-Workflow сборки добавлен в ветке M1; до появления результата CI сборку нельзя считать подтверждённой.
+CI успешно собрал debug APK для кода на commit `3847491be0e22ad664a186c760c401b814c0959e`; артефакт `organism-debug-apk` доступен в [результате сборки](https://github.com/alexbotleh-oss/organism/actions/runs/37888507293). Реальная работа на Android-устройстве ещё не проверена.
 
 ## Основной архитектурный принцип
 
