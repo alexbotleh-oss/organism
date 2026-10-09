@@ -21,7 +21,7 @@ public class ImportPipeline {
 
     public void importUri(Uri uri,Listener l){
         new Thread(()->{try{
-            String name=String.valueOf(uri.getLastPathSegment());String type=ctx.getContentResolver().getType(uri);
+            String name=displayName(uri);String type=ctx.getContentResolver().getType(uri);
             boolean zip=name.toLowerCase(Locale.ROOT).endsWith(".zip")||"application/zip".equalsIgnoreCase(type)
                     ||"application/x-zip-compressed".equalsIgnoreCase(type);
             if(zip){
@@ -110,6 +110,19 @@ public class ImportPipeline {
 
     private volatile String lastZipSummary="";
 
+    private String displayName(Uri uri){
+        android.database.Cursor c=null;
+        try{c=ctx.getContentResolver().query(uri,new String[]{android.provider.OpenableColumns.DISPLAY_NAME},null,null,null);if(c!=null&&c.moveToFirst()){String n=c.getString(0);if(n!=null&&!n.trim().isEmpty())return n;}}
+        catch(Exception ignored){}finally{if(c!=null)c.close();}
+        return String.valueOf(uri.getLastPathSegment());
+    }
+
+    private String shaFile(File file)throws Exception{
+        MessageDigest md=MessageDigest.getInstance("SHA-256");
+        try(InputStream in=new BufferedInputStream(new FileInputStream(file))){byte[] b=new byte[64*1024];int n;while((n=in.read(b))!=-1)md.update(b,0,n);}
+        StringBuilder out=new StringBuilder();for(byte v:md.digest())out.append(String.format(Locale.US,"%02x",v));return out.toString();
+    }
+
     private File saveIncomingZip(Uri uri,String name)throws Exception{
         File dir=new File(ctx.getFilesDir(),"raw");if(!dir.exists()&&!dir.mkdirs())throw new IOException("Не удалось создать каталог RAW");
         String safe=name.replaceAll("[^A-Za-z0-9А-Яа-я._-]","_");
@@ -131,7 +144,7 @@ public class ImportPipeline {
                 String path=entry.getName();String lower=path.toLowerCase(Locale.ROOT);
                 if(lower.endsWith("conversations.json")||lower.equals("chat.json")||lower.endsWith("/chat.json")){
                     foundConversationFile=true;files++;
-                    conversations+=parseChatJsonStream(path,z,displayName);
+                    conversations+=parseChatJsonStream(path,z,displayName,rawSource);
                     z.closeEntry();
                 }else if(lower.endsWith(".txt")||lower.endsWith(".md")||lower.endsWith(".html")){
                     // Keep ancillary text small and bounded; the large JSON conversation export is streamed separately.
@@ -165,7 +178,7 @@ public class ImportPipeline {
                 JSONObject conversation=new JSONObject(object.toString());
                 String title=conversation.optString("title","ChatGPT conversation");
                 String conversationId=conversation.optString("conversation_id",conversation.optString("id",""));
-                long source=db.source("CHAT_EXPORT_CONVERSATION",title,archiveName+"!/"+path,null,sha(conversation.toString()),0,conversationId);
+                long source=db.source("CHAT_EXPORT_CONVERSATION",title,archiveName+"!/"+path,null,sha(conversation.toString()),rawSourceId,conversationId);
                 parseChatConversation(path,conversation,source,project);imported++;
             }}continue;}
             if(c==']'){closed=true;break;}
