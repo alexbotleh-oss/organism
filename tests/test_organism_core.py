@@ -113,6 +113,36 @@ class OrganismCoreTests(unittest.TestCase):
             with self.core._connect() as conn:
                 conn.execute("DELETE FROM events WHERE id=?", (event_id,))
 
+    def test_legacy_json_migration_preserves_raw_and_keeps_experience_unverified(self):
+        snapshot = {
+            "version": 1,
+            "projects": [{"id": "PRJ001", "name": "Recipe Manager", "status": "ACTIVE"}],
+            "projectStates": [{"id": "PST001", "projectId": "PRJ001", "name": "Import repair"}],
+            "messages": [
+                {"id": "m1", "role": "user", "content": "Do not overwrite the whole file"},
+                {"id": "m2", "role": "assistant", "content": "Try a small patch"},
+            ],
+            "experiences": [
+                {"id": "e1", "projectId": "PRJ001", "title": "Small patch",
+                 "whatTried": "Patch only the target function", "whatWorked": "Regression avoided",
+                 "appliesWhen": "Existing file has unrelated working logic"},
+                {"id": "e2", "projectId": "PRJ001", "title": "Incomplete", "whatTried": "Try X"},
+            ],
+            "relations": [{"from": "e1", "to": "m2", "type": "derived_from"}],
+            "events": [{"id": "old-event-1", "type": "IMPORT"}],
+            "tasks": [{"id": "T1", "projectId": "PRJ001", "title": "Audit", "status": "OPEN"}],
+        }
+        report = self.core.import_legacy_snapshot(snapshot)
+        self.assertEqual(report["projects"], 1)
+        self.assertEqual(report["messages_preserved"], 2)
+        self.assertEqual(report["experience_candidates"], 1)
+        self.assertEqual(report["unmapped_experiences"], 1)
+        snap = self.core.export_snapshot()
+        self.assertEqual(len(snap["source_documents"]), 1 + 1 + 2 + 1)
+        self.assertEqual(snap["experiences"][0]["verification_status"], "unverified")
+        self.assertEqual(snap["experiences"][0]["experience_status"], "candidate")
+        self.assertEqual(len(snap["relations"]), 1)
+
     def test_directive_is_in_handoff(self):
         self.core.add_directive("Do not rewrite the whole file", project_id="P1")
         handoff = self.core.build_handoff(project_id="P1", task="edit file")
