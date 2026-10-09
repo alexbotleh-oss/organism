@@ -88,3 +88,10 @@ User requirement: document every meaningful development stage so a future assist
 The archive/search code commit `fc3acbe57d745de04953b55cac8e5035d0357f1c` passed Android CI. Run `37943562566` successfully assembled and uploaded the debug APK: https://github.com/alexbotleh-oss/organism/actions/runs/37943562566. Independent run `37943562807` also passed and uploaded its APK: https://github.com/alexbotleh-oss/organism/actions/runs/37943562807.
 
 This confirms CI build only. No Android device validation has happened yet. Next: inspect the uploaded artifact, then test archive search and transcript view against the existing installation/database without re-importing the ZIP. Do not automatically remove duplicate records from previous imports.
+
+
+## Follow-up — filter empty source rows in archive
+
+- Commit `bd0653fb2195997cfb7df8915d6cac8ebd86fc41` updates the archive query to list only conversation sources with at least one linked `CHAT_MESSAGE`. This prevents empty duplicate source records from older builds appearing as blank conversations; it does not delete or alter stored records.
+- Work-log entry: `429ab25f9a4bdf2df13161631c9b370694b3fff8`.
+- The prior app commit `fc3acbe57d745de04953b55cac8e5035d0357f1c` passed CI. This additional query change has not yet been build-verified. Next: check CI for `bd0653fb2195997cfb7df8915d6cac8ebd86fc41`, then validate on the phone without re-importing the ZIP.
