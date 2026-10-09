@@ -71,3 +71,13 @@ User requirement: document every meaningful development stage so a future assist
 - Logged the stage in `docs/WORKLOG.md` commit `8c4b989fc99270eaeb96e7fabc38cd1b0d1e0d4d`.
 - This is a documentation change only. Platform WebView connector is not implemented or verified. Existing issue `subscription_sharing_usage_limit_exceeded` must not be bypassed.
 - Next ordered work: (1) inspect Db/import pipeline and implement archive/search without data loss; (2) inspect existing connector code and assess a supported official-platform WebView flow, documenting capabilities and limits; (3) run exact-commit CI and device checks and record each result separately.
+
+
+## 2026-10-09 — Archive/search code stage
+
+- Code: `aa35dfd53a9e489ba2fcc8624c3efd646abaccad` adds imported conversation search and transcript viewing; `fc3acbe57d745de04953b55cac8e5035d0357f1c` fixes duplicate conversation-source creation during ZIP parsing.
+- Search matches conversation titles and message content. The archive screen opens a selectable/copyable transcript; limits are 500 search results and 3,000 messages per transcript view.
+- Work log: `a2f3c00e973f9d44e544c017e01dd21dd5d448fe`.
+- CI run `37943562566` is queued for `fc3acbe57d745de04953b55cac8e5035d0357f1c`: https://github.com/alexbotleh-oss/organism/actions/runs/37943562566. Build and device behavior are not yet verified.
+- No user database was reset or migrated. Any duplicate rows from a prior version remain untouched; do not re-import or clean them automatically.
+- Next: review CI result, fix failures, then validate the archive on the existing Android installation without re-importing the ZIP. Investigate RAW ZIP metadata and supported official-platform WebView interaction after this check.
