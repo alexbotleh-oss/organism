@@ -70,7 +70,7 @@ public final class ContextEngine {
         Cursor c=db.query("SELECT m.logical_id,m.title,m.content,m.claim_status,m.verification_status,m.confidence,m.priority,m.project_id,m.task_id,m.source_id,\n"+
                 "CASE WHEN m.project_id=? THEN 1 ELSE 0 END project_match,\n"+
                 "CASE WHEN m.memory_status='ACTIVE' THEN 1 ELSE 0 END active\n"+
-                "FROM memory_objects m WHERE m.memory_status='ACTIVE' AND m.availability_level!='DELETED' AND (m.project_id=? OR m.project_id IS NULL) ORDER BY m.priority DESC,m.updated_at DESC LIMIT 160",new String[]{""+project});
+                "FROM memory_objects m WHERE m.memory_status='ACTIVE' AND m.availability_level!='DELETED' AND (m.project_id=? OR m.project_id IS NULL) ORDER BY m.priority DESC,m.updated_at DESC LIMIT 160",new String[]{""+project,""+project});
         while(c.moveToNext()){
             String text=(nvl(c.getString(1),"")+" "+nvl(c.getString(2),"")).toLowerCase(Locale.ROOT);
             double lexical=overlap(q,text);
