@@ -62,3 +62,12 @@ User requirement: document every meaningful development stage so a future assist
 - Important limitation: repository file creation does not automatically modify ChatGPT Project Settings. If the user wants these rules available from any chat in the Project, copy the contents of `PROJECT_INSTRUCTIONS.md` into the Project Instructions UI. The repository copy is durable and should be maintained as the source of truth.
 - No app code changed; no build/device test performed in this documentation stage.
 - Next: inspect the current database/import pipeline and implement a usable imported-conversation archive/search without resetting existing data.
+
+
+## 2026-10-09 — Progress tracking and platform-first preference
+
+- User explicitly requests ongoing comparison of what is done vs. remaining work at each session, and a preference for using the official platform web UI in an in-app browser/WebView instead of API where feasible.
+- Updated root `PROJECT_INSTRUCTIONS.md` in commit `84526cc52919d487e42602c8994d4e2f69170c0e`: mandatory planned/implemented/verified/device-confirmed tracking; platform UI first where safe, permitted, and reliable; no bypassing authentication/security/usage limits; no silent API fallback; connector must be tested before being called functional.
+- Logged the stage in `docs/WORKLOG.md` commit `8c4b989fc99270eaeb96e7fabc38cd1b0d1e0d4d`.
+- This is a documentation change only. Platform WebView connector is not implemented or verified. Existing issue `subscription_sharing_usage_limit_exceeded` must not be bypassed.
+- Next ordered work: (1) inspect Db/import pipeline and implement archive/search without data loss; (2) inspect existing connector code and assess a supported official-platform WebView flow, documenting capabilities and limits; (3) run exact-commit CI and device checks and record each result separately.
