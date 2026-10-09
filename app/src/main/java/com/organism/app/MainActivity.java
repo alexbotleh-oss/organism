@@ -55,10 +55,35 @@ public class MainActivity extends Activity {
         root.addView(top);
         content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(14),dp(4),dp(14),dp(16));
         ScrollView scroll=new ScrollView(this);scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
-        String[][] items={{"Главная","home"},{"Чат","chat"},{"Память","memory"},{"Импорт","import"},{"База","database"},{"Настройки","settings"}};
-        for(String[] it:items){Button b=bt(it[0]);b.setOnClickListener(v->navigate(it[1]));nav.addView(b,new LinearLayout.LayoutParams(150,58));}
-        navScroll.addView(nav);root.addView(navScroll);setContentView(root);
+        navScroll=new HorizontalScrollView(this);
+        navScroll.setHorizontalScrollBarEnabled(false);
+        navScroll.setFillViewport(true);
+        LinearLayout nav=new LinearLayout(this);
+        nav.setOrientation(LinearLayout.VERTICAL);
+        nav.setPadding(dp(4),dp(2),dp(4),dp(4));
+        String[][] items={{"⌂  Главная","home"},{"▣  Чат","chat"},{"◉  Память","memory"},{"⇧  Импорт","import"},{"▤  База","database"},{"⚙  Настройки","settings"}};
+        for(int rowIndex=0;rowIndex<2;rowIndex++){
+            LinearLayout row=new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for(int col=0;col<3;col++){
+                String[] it=items[rowIndex*3+col];
+                Button b=bt(it[0]);
+                b.setTextSize(11);
+                b.setGravity(Gravity.CENTER);
+                b.setSingleLine(false);
+                b.setMaxLines(2);
+                b.setMinHeight(dp(44));
+                b.setContentDescription(it[1]);
+                b.setOnClickListener(v->navigate(it[1]));
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(44),1f);
+                bp.setMargins(dp(2),dp(1),dp(2),dp(1));
+                row.addView(b,bp);
+            }
+            nav.addView(row,new LinearLayout.LayoutParams(-1,-2));
+        }
+        navScroll.addView(nav,new HorizontalScrollView.LayoutParams(-1,-2));
+        root.addView(navScroll,new LinearLayout.LayoutParams(-1,-2));
+        setContentView(root);
     }
     void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else showSettings();}
     void clear(String title){screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
@@ -109,7 +134,18 @@ public class MainActivity extends Activity {
         if(hasCreds())loadModels();else card("ChatGPT","Подключите аккаунт, чтобы использовать модель. Импорт и база работают локально без подключения.");
     }
     void showContextDialog(){
-        String snapshot=contextEngine.build(chatInput==null?"":chatInput.getText().toString(),activeSessionId);
+        final String snapshot;
+        try {
+            snapshot=contextEngine.build(chatInput==null?"":chatInput.getText().toString(),activeSessionId);
+        } catch(Throwable e) {
+            Log.e("ORGANISM","Context Snapshot generation failed",e);
+            new AlertDialog.Builder(this)
+                .setTitle("Не удалось построить Context Snapshot")
+                .setMessage("История и база не удалены. Ошибка: "+e.getClass().getSimpleName()+": "+String.valueOf(e.getMessage()))
+                .setPositiveButton("Закрыть",null)
+                .show();
+            return;
+        }
         TextView t=tv(snapshot,14,Color.rgb(30,36,48));
         t.setTextIsSelectable(true);
         t.setPadding(18,18,18,18);
