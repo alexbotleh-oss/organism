@@ -259,3 +259,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Build status at this point:** latest Android CI run discovered in Actions list is run `37977490305`, commit `e872fa9b8eaecc4a8291ce9eef5ff4af7db76de7`, conclusion `success`; that build predates this documentation-only decision commit and includes the external-browser fallback source change. Device verification remains pending.
 - **Safety:** existing API/OAuth code, saved credentials, imported history, database and app preferences unchanged. No site automation, DOM/cookie access or limit bypass.
 - **Next step:** after the user validates the current browser fallback build, implement provider registry + provider picker and the shared manual web connector for Claude and DeepSeek first; add the other three through the same interface after the first vertical slice passes build and device checks.
+
+## 2026-10-09 — WL-021 — Imported-chat search navigation
+
+- **Lifecycle:** STARTED → CHANGED → CI PENDING → DEVICE TEST PENDING.
+- **Baseline:** branch `fix/oauth-diagnostic-trace-20261009`; pre-change app source at `c8834abf0573db688cff4b0db5bdbb1f6b40963e`; baseline branch head before this stage `fe98bbad140411e3894bd4fe3a825d8978a3eae5` (acceptance-check documentation).
+- **Observed gap from user feedback:** imported conversations were reported as difficult to find/open. Code review found an archive/search screen already existed, but search results displayed only conversation title/count and opened a long transcript from its beginning.
+- **Spec/acceptance:** `docs/DEVICE_FEEDBACK_2026-10-09_CHAT_ARCHIVE_GAP.md` updated in commit `fe98bbad140411e3894bd4fe3a825d8978a3eae5` with search/snippet/jump-to-match acceptance checks.
+- **Code change:** commit `e670155838794084939eba546a225b705cdde541` updates `MainActivity.java`: results now include a short matching-message snippet; selecting a search result opens the paginated conversation view on the 100-message page containing the first match; empty-query archive opens at page 1. Search text remains bound through SQL parameters.
+- **Static review:** read back the modified source and confirmed query bindings and page-offset navigation. No local Gradle test was run in this tool session. GitHub Actions run `37980569567` was `in_progress` at last check: https://github.com/alexbotleh-oss/organism/actions/runs/37980569567.
+- **Data safety:** read-only UI/query changes only. No schema migration, imported record rewrite, archive re-import, database reset, RAW deletion, or credential change.
+- **Known limits:** title-only search opens page 1 because there is no matching message body; large result sets remain capped at 500; page navigation and SQL runtime behavior still need CI and device verification.
+- **Status:** PARTIAL — source committed, build not yet verified, no device test.
+- **Next action:** verify Actions for exact code SHA `e670155838794084939eba546a225b705cdde541`; if green, inspect artifact availability and test on phone with title-only/body-only/no-match and a body match beyond the first 100 messages. Do not claim device success from CI.
