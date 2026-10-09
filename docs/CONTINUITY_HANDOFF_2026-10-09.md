@@ -201,3 +201,11 @@ The build is verified; device behavior is not. Next action is install/test this 
 - **Verification status:** source and docs writes are committed, but exact-commit Android CI and physical-device behavior have not yet been checked. Embedded WebView authentication may be restricted; if blocked, use an official browser handoff rather than bypassing controls.
 - **Data safety:** no database/archive reset, migration, or credential deletion. Pending prompt/context is kept in app-private preferences until response import or replacement by a new prepared prompt. Do not test by re-sending API prompts while the current usage limit is exhausted.
 - **Next concrete action:** inspect/read back the exact changed source files and check CI for the latest branch head. If green, install that exact APK and test WebView login, prompt copy/paste, answer copy/import, and one-time persistence on the existing installation. Record build evidence separately from device results.
+
+
+## Handoff addendum — Exact prepared prompt preview (2026-10-09)
+
+- Latest application change: `d88a1eca21136b37fe8a25991d25d2d4fbb1b2ab` adds a selectable preview of the exact prompt/context prepared for ChatGPT Web before the user copies it.
+- Latest documentation record: WL-017, commit `7977d52d473db78e97c913661866a94f7bfbc9e5`.
+- A combined GitHub commit-status query returned no status checks for the latest application commit. This is **not** evidence of a successful build; CI remains pending/unobserved.
+- **Next:** confirm an Android build for the latest branch head. If no automatic workflow is running, inspect the repository's workflow configuration and trigger/use the existing build process rather than claiming success. Then test on the existing phone without clearing data.
