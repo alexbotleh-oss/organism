@@ -224,3 +224,14 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no database/archive/credential changes. Prompt includes selected Context Snapshot and user text, so the preview makes clear what the user is about to copy into ChatGPT Web. No automatic page interaction was added.
 - **Status:** PARTIAL. Exact prompt preview implemented; compile and WebView/device behavior unverified.
 - **Next action:** obtain a successful Android build for the latest branch commit; then install that exact APK and test the preview/copy/manual send/answer import flow once.
+
+
+## 2026-10-09 — WL-018 — Corrected CI verification status
+
+- **Status:** Android CI VERIFIED for latest branch head; device test PENDING.
+- **Correction:** An earlier query returned no runs because the helper used only exposes pull-request-triggered runs. I incorrectly treated the empty result as no build. Direct inspection of the Actions run list shows the latest branch build succeeded.
+- **Exact evidence:** run 37973127262; branch `fix/oauth-diagnostic-trace-20261009`; commit `69efeb2c32a575c43e336a348b8c73feb91963f5`; conclusion `success`. The `assemble-debug` job built and uploaded `organism-debug-apk`.
+- **Artifact:** ID 11638116459; size 11,353,155 bytes; archive digest `sha256:ac28545249d4dfc4b73936e6993b5b818fbf18e9630921729f7d1067aee5737e`.
+- **Failure history:** app commit `11c27e21c8fb` had a failed build (run 37972935277); later application commits and the latest head passed CI. Preserve this failure in the record.
+- **Boundary:** CI proves compilation and artifact upload, not WebView login or phone behavior. No user data, database, archive, or saved credentials were changed.
+- **Next:** user installs the artifact from the successful Actions run and tests WebView login plus manual prompt/response once. If embedded login is blocked, do not bypass platform protections; use official browser handoff.
