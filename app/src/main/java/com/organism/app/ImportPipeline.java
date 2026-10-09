@@ -62,7 +62,7 @@ public class ImportPipeline {
             db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
         }else{
             db.event("CHAT_IMPORTED","Диалоговый текст разобран на сообщения: "+name+"; messages="+importedMessages,project,0,src,"STATED","VERIFIED");
-            db.memory("CONTEXT_INDEX",title,"CHAT TRANSCRIPT INDEX v1\\nsource_id: "+src+"\\nmessage_count: "+importedMessages+"\\nraw_source_preserved: true\\nsemantic_extraction: pending\\n",project,0,src,"STATED","NOT_VERIFIED",0.5);
+            db.memory("CONTEXT_INDEX",title,"CHAT TRANSCRIPT INDEX v1\nsource_id: "+src+"\nmessage_count: "+importedMessages+"\nraw_source_preserved: true\nsemantic_extraction: pending\n",project,0,src,"STATED","NOT_VERIFIED",0.5);
         }
         appendEvent("IMPORT",name,src);
         writeSnapshot(project);
@@ -127,7 +127,7 @@ public class ImportPipeline {
             char c=json.charAt(i);
             if(inString){
                 if(escaped)escaped=false;
-                else if(c=='\\\\')escaped=true;
+                else if(c=='\\')escaped=true;
                 else if(c=='"')inString=false;
                 continue;
             }
@@ -188,7 +188,7 @@ public class ImportPipeline {
             char c=html.charAt(i);
             if(inString){
                 if(escaped)escaped=false;
-                else if(c=='\\\\')escaped=true;
+                else if(c=='\\')escaped=true;
                 else if(c=='"')inString=false;
                 continue;
             }
@@ -218,14 +218,14 @@ public class ImportPipeline {
         }
         ArrayList<String> ordered=orderChatNodes(nodes);
         String currentNode=conversation.optString("current_node","");
-        String header="CHAT EXPORT INDEX v1\\n"
-                +"conversation_id: "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+"\\n"
-                +"title: "+title+"\\n"
-                +"current_node: "+(currentNode.isEmpty()?"UNKNOWN":currentNode)+"\\n"
-                +"node_count: "+nodes.size()+"\\n"
-                +"ordering: parent/children traversal; disconnected nodes sorted by message time and node id\\n"
-                +"provenance_source_id: "+source+"\\n"
-                +"message_nodes: stored as individually searchable memory objects\\n";
+        String header="CHAT EXPORT INDEX v1\n"
+                +"conversation_id: "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+"\n"
+                +"title: "+title+"\n"
+                +"current_node: "+(currentNode.isEmpty()?"UNKNOWN":currentNode)+"\n"
+                +"node_count: "+nodes.size()+"\n"
+                +"ordering: parent/children traversal; disconnected nodes sorted by message time and node id\n"
+                +"provenance_source_id: "+source+"\n"
+                +"message_nodes: stored as individually searchable memory objects\n";
         int messageCount=0;
         for(String nodeId:ordered){
             JSONObject node=nodes.get(nodeId);
@@ -249,11 +249,11 @@ public class ImportPipeline {
             String body=chatMessageText(message.optJSONObject("content"));
             String nodeText="[CHAT_MESSAGE conversation_id="+conversationId+" source_id="+source+
                     " node_id="+nodeId+" parent="+parent+" children="+childIds+
-                    " current="+nodeId.equals(currentNode)+"]\\n"
+                    " current="+nodeId.equals(currentNode)+"]\n"
                     +"message_id: "+messageId+" | role: "+role
                     +(authorName.isEmpty()?"":" | author: "+authorName)
                     +" | time: "+timestamp
-                    +(channel.isEmpty()?"":" | channel: "+channel)+"\\n"
+                    +(channel.isEmpty()?"":" | channel: "+channel)+"\n"
                     +role+": "+body;
             db.memory("CHAT_MESSAGE",title+" [conversation "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+" node "+nodeId+"]",nodeText,
                     project,0,source,"STATED","NOT_VERIFIED",0.5);
@@ -267,7 +267,7 @@ public class ImportPipeline {
             db.event("CHAT_IMPORTED","Чат импортирован: "+title+
                     "; nodes="+nodes.size()+"; messages="+messageCount,
                     project,0,source,"STATED","VERIFIED");
-            db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\\n",
+            db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\n",
                     project,0,source,"STATED","NOT_VERIFIED",0.5);
         }else{
             db.event("CHAT_IMPORT_INCOMPLETE","В чате не найдено ни одного узла: "+title,
