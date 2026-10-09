@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/m1-chat-history-preservation
+      - fix/oauth-diagnostic-trace-20261009
   pull_request:
     branches:
       - main
