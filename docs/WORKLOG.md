@@ -304,3 +304,14 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Scope:** layout accessibility only. Does not change provider transport, site DOM, authentication, memory/archive data, or permissions.
 - **Verification:** source committed. CI and on-device test still pending; do not call the layout fixed until tested on the user's device with system navigation and keyboard visible.
 - **Next:** check exact commit's Actions build, then test that header and send button are fully visible/tappable in portrait and with keyboard open. Cookie consent remains a site-owned modal and must be dismissed on the page.
+
+## 2026-10-09 — WL-025 — Make Android UI quality a project-wide release gate
+
+- **User directive:** Android layout standards are mandatory for the entire app, like a spoon with soup: consistent margins, safe spacing top/bottom, usable button sizes, and proper composition must not be forgotten when designing APKs.
+- **Official references reviewed:** Android Developers guidance on window insets and edge-to-edge layout; Android accessibility guidance recommends touch targets of at least 48×48 dp. Sources are listed in `docs/ANDROID_UI_STANDARD_v1.0.md`.
+- **Changes:** `docs/ANDROID_UI_STANDARD_v1.0.md` added in commit `43ce4ef35b697cb60d0fce690841a402c8ffd847`; `PROJECT_INSTRUCTIONS.md` updated in commit `c8530c0b4d3a76e79aaf78a99a9cc763f81fc916` to make the standard mandatory before any Android UI work and any APK release.
+- **Acceptance gate:** all screens must account for system bars/cutouts/keyboard, keep primary actions reachable, use 48×48 dp minimum touch targets (or verified equivalent), maintain consistent dp/sp spacing, support scrolling/adaptive layouts, and have recorded screen-by-screen checks. CI compilation is not UI verification.
+- **Current UI defect context:** screenshot showed WebView header/system indicators overlapping visually and bottom composer/action too close to navigation area; exact device layout remains to be verified after the safe-area change. Cookie consent is site-owned.
+- **Data safety:** documentation-only stage; no app data, database, imported archive, OAuth credentials, or preferences changed.
+- **Status:** standard documented and linked from project entry instructions; not yet audited against every existing screen.
+- **Next action:** inspect the latest UI commit's CI result, then audit all app screens against this checklist and fix the screen-level issues as one coherent UI pass before treating the APK as release-ready.
