@@ -316,6 +316,37 @@ class OrganismCore:
         report = {"source_id": raw["source_id"], "projects": 0, "states": 0, "tasks": 0,
                   "messages_preserved": 0, "experience_candidates": 0, "relations": 0,
                   "unmapped_experiences": 0, "legacy_events": 0}
+        # Create additional provenance sources before opening the structured-write transaction.
+        # This avoids nested SQLite writers and preserves each message/experience as its own source.
+        experience_raw_by_index = {}
+        for message_index, message in enumerate(snapshot.get("messages", []) or []):
+            if not isinstance(message, dict):
+                continue
+            body = message.get("content", message.get("text", message.get("message")))
+            if body is None:
+                continue
+            role = str(message.get("role") or message.get("speaker") or "unknown")
+            self.import_text(
+                f"{source_name}#message:{message.get('id', message_index)}",
+                str(body), source_kind="legacy_message", speaker=role,
+                origin="organism_generated" if role.lower() in {"assistant", "model", "organism"} else "external",
+                metadata={"legacy_message_id": message.get("id"), "project_id": message.get("projectId")},
+            )
+            report["messages_preserved"] += 1
+        for experience_index, experience in enumerate(snapshot.get("experiences", []) or []):
+            if not isinstance(experience, dict):
+                report["unmapped_experiences"] += 1
+                continue
+            action = str(experience.get("whatTried") or "").strip()
+            outcome = str(experience.get("whatWorked") or experience.get("whatFailed") or "").strip()
+            if not action or not outcome:
+                report["unmapped_experiences"] += 1
+                continue
+            experience_raw_by_index[experience_index] = self.import_text(
+                f"{source_name}#experience:{experience.get('id', experience_index)}",
+                _json(experience), source_kind="legacy_experience", completeness="unknown",
+                metadata={"legacy_experience_id": experience.get("id"), "project_id": experience.get("projectId")},
+            )
         with self._connect() as conn:
             for item in snapshot.get("projects", []) or []:
                 if not isinstance(item, dict) or not item.get("id"):
@@ -345,23 +376,8 @@ class OrganismCore:
                      str(item.get("description") or ""), str(item.get("status") or "OPEN"), now, now),
                 )
                 report["tasks"] += 1
-            for item in snapshot.get("messages", []) or []:
+            for experience_index, item in enumerate(snapshot.get("experiences", []) or []):
                 if not isinstance(item, dict):
-                    continue
-                body = item.get("content", item.get("text", item.get("message")))
-                if body is None:
-                    continue
-                role = str(item.get("role") or item.get("speaker") or "unknown")
-                self.import_text(
-                    f"{source_name}#message:{item.get('id', report['messages_preserved'])}",
-                    str(body), source_kind="legacy_message", speaker=role,
-                    origin="organism_generated" if role.lower() in {"assistant", "model", "organism"} else "external",
-                    metadata={"legacy_message_id": item.get("id"), "project_id": item.get("projectId")},
-                )
-                report["messages_preserved"] += 1
-            for item in snapshot.get("experiences", []) or []:
-                if not isinstance(item, dict):
-                    report["unmapped_experiences"] += 1
                     continue
                 action = str(item.get("whatTried") or "").strip()
                 outcome = str(item.get("whatWorked") or item.get("whatFailed") or "").strip()
@@ -369,11 +385,7 @@ class OrganismCore:
                 if not action or not outcome:
                     report["unmapped_experiences"] += 1
                     continue
-                exp_raw = self.import_text(
-                    f"{source_name}#experience:{item.get('id', report['experience_candidates'])}",
-                    _json(item), source_kind="legacy_experience", completeness="unknown",
-                    metadata={"legacy_experience_id": item.get("id"), "project_id": item.get("projectId")},
-                )
+                exp_raw = experience_raw_by_index[experience_index]
                 exp_id = _id("exp")
                 conn.execute(
                     """INSERT OR IGNORE INTO experiences(id,project_id,title,conditions_json,environment_json,
