@@ -53,3 +53,12 @@ User tested the APK on a real Android phone and reported that imported conversat
 Next stage: inspect `Db.java` and `ImportPipeline.java`; map stored conversation IDs, titles, timestamps, roles, message nodes, and provenance. Specify and implement a searchable imported-conversation archive with full ordered transcript viewing and a clear distinction between imported ChatGPT chats and ORGANISM sessions. Verify idempotency and preserve existing data. Investigate RAW metadata and replace the misleading character count with accurate file metadata. Build evidence and device validation must be recorded separately.
 
 User requirement: document every meaningful development stage so a future assistant can resume with continuity. Follow `docs/WORKLOG_AND_CONTINUITY_PROTOCOL_v1.0.md` and append to `docs/WORKLOG.md`; also update this handoff at the end of each substantial session. Protocol commit: `b8cad3184875ed40229f06d45d17bbc9bbdbb15e`. Device-feedback report: `docs/DEVICE_FEEDBACK_2026-10-09_CHAT_ARCHIVE_GAP.md`. Latest work-log commit before this handoff update: `b9e631f5591927f8cfb44150e50cd5a09c6b973a`. No application code was changed during these documentation updates; no new build was run.
+
+
+## 2026-10-09 — Universal project entry instructions added
+
+- Added root `PROJECT_INSTRUCTIONS.md` in commit `0780db0a81e003bc3cdbf99050e6b1b27bfb9868`. It is a concise entry point for any assistant/chat: working style, where to look first, invariant “one memory, different connectors”, data-safety rules, current imported-chat archive/search priority, and mandatory work-stage logging.
+- Work-log entry added in commit `5493bb4dddccb0672dd1a4e2f89c96483f265cab`.
+- Important limitation: repository file creation does not automatically modify ChatGPT Project Settings. If the user wants these rules available from any chat in the Project, copy the contents of `PROJECT_INSTRUCTIONS.md` into the Project Instructions UI. The repository copy is durable and should be maintained as the source of truth.
+- No app code changed; no build/device test performed in this documentation stage.
+- Next: inspect the current database/import pipeline and implement a usable imported-conversation archive/search without resetting existing data.
