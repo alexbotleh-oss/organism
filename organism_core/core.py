@@ -698,6 +698,17 @@ class OrganismCore:
                 raise ValueError(f"Unknown {object_type}: {object_id}")
             old = row[field] or ""
             digest = hashlib.sha256(old.encode("utf-8")).hexdigest() if old else None
+            dependent_claim_ids: set[str] = set()
+            dependent_experience_ids: set[str] = set()
+            if object_type == "raw_segment":
+                dependent_claim_ids = {r["claim_id"] for r in conn.execute(
+                    "SELECT claim_id FROM claim_sources WHERE raw_segment_id=?", (object_id,))}
+                dependent_experience_ids = {r["experience_id"] for r in conn.execute(
+                    "SELECT experience_id FROM experience_sources WHERE raw_segment_id=?", (object_id,))}
+            elif object_type == "claim":
+                dependent_claim_ids.add(object_id)
+            elif object_type == "experience":
+                dependent_experience_ids.add(object_id)
             # Scrub the requested content; dependent rows remain and are flagged for review.
             conn.execute(f"UPDATE {table} SET {field}=? WHERE id=?", ("[REDACTED BY USER REQUEST]", object_id))
             if object_type == "raw_segment":
@@ -728,8 +739,33 @@ class OrganismCore:
                 "INSERT INTO tombstones(id,object_type,object_id,reason,authorized_by,created_at,content_sha256) VALUES(?,?,?,?,?,?,?)",
                 (tombstone_id, object_type, object_id, reason, authorized_by, _now(), digest),
             )
+            # Remove locally retained Handoff copies of redacted memory. The prior snapshot
+            # hash is kept in the audit event, while the stored snapshot is re-hashed after redaction.
+            redacted_applications = []
+            for app in conn.execute("SELECT id,handoff_json,handoff_sha256 FROM applications").fetchall():
+                try:
+                    payload = json.loads(app["handoff_json"])
+                except json.JSONDecodeError:
+                    continue
+                original_hash = app["handoff_sha256"]
+                before_claims = payload.get("verified_claims", [])
+                before_experiences = payload.get("validated_experiences", [])
+                payload["verified_claims"] = [x for x in before_claims if x.get("id") not in dependent_claim_ids]
+                payload["validated_experiences"] = [x for x in before_experiences if x.get("id") not in dependent_experience_ids]
+                removed = len(before_claims) != len(payload["verified_claims"]) or len(before_experiences) != len(payload["validated_experiences"])
+                if removed:
+                    refs = set(payload.get("redacted_references", []))
+                    refs.update(dependent_claim_ids)
+                    refs.update(dependent_experience_ids)
+                    payload["redacted_references"] = sorted(refs)
+                    new_snapshot = _json(payload)
+                    new_hash = hashlib.sha256(new_snapshot.encode("utf-8")).hexdigest()
+                    conn.execute("UPDATE applications SET handoff_json=?,handoff_sha256=? WHERE id=?",
+                                 (new_snapshot, new_hash, app["id"]))
+                    redacted_applications.append({"application_id": app["id"], "prior_sha256": original_hash, "redacted_sha256": new_hash})
             self._event(conn, "USER_AUTHORIZED_REDACTION", authorized_by, object_type, object_id,
-                        {"tombstone_id": tombstone_id, "reason": reason, "content_sha256": digest})
+                        {"tombstone_id": tombstone_id, "reason": reason, "content_sha256": digest,
+                         "redacted_applications": redacted_applications})
         return tombstone_id
 
     def stats(self) -> dict[str, int]:
