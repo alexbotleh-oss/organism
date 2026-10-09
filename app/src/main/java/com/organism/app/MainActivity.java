@@ -153,11 +153,13 @@ public class MainActivity extends Activity {
         TextView first=tv("НАЧАЛО RAW\n"+preview,12,Color.rgb(35,43,58));first.setTextIsSelectable(true);first.setPadding(12,12,12,12);first.setBackgroundColor(Color.WHITE);content.addView(first);
         if(raw!=null&&raw.length()>5000){String tail=raw.substring(Math.max(0,raw.length()-3000));TextView last=tv("КОНЕЦ RAW\n"+tail,12,Color.rgb(35,43,58));last.setTextIsSelectable(true);last.setPadding(12,12,12,12);last.setBackgroundColor(Color.WHITE);content.addView(last);}
     }
-    void showImportedConversation(long sourceId,String title){
+    void showImportedConversation(long sourceId,String title){showImportedConversation(sourceId,title,0);}
+    void showImportedConversation(long sourceId,String title,int page){
         clear("Проверка беседы");
         Button back=bt("← К списку импортов");back.setOnClickListener(v->showImportAudit());content.addView(back);
-        card(title,"Фрагменты ниже прочитаны из SQLite. Роль, node ID, parent/children и время взяты из сохранённых объектов. Это проверка фактического содержимого, а не оценка смысловой точности.");
-        android.database.Cursor c=db.query("SELECT title,content,claim_status,verification_status,source_id FROM memory_objects WHERE kind='CHAT_MESSAGE' AND source_id=? ORDER BY id ASC",new String[]{""+sourceId});
+        long total=Long.parseLong(db.queryOne("SELECT COUNT(*) FROM memory_objects WHERE kind='CHAT_MESSAGE' AND source_id=?",new String[]{""+sourceId}));
+        card(title,"Показана страница "+(page+1)+" из "+Math.max(1,(int)Math.ceil(total/100.0))+". Всего сообщений в этой беседе: "+total+". Фрагменты прочитаны из SQLite; статусы не означают, что содержание независимо проверено.");
+        android.database.Cursor c=db.query("SELECT title,content,claim_status,verification_status,source_id FROM memory_objects WHERE kind='CHAT_MESSAGE' AND source_id=? ORDER BY id ASC LIMIT 100 OFFSET "+(page*100),new String[]{""+sourceId});
         int count=0;
         while(c.moveToNext()){
             count++;String head=c.getString(0);String body=c.getString(1);
@@ -166,7 +168,9 @@ public class MainActivity extends Activity {
         }
         c.close();
         if(count==0)card("Нет сообщений","Для этой беседы не найдены объекты CHAT_MESSAGE. Это признак неполного импорта или несоответствия source_id.");
-        else card("Итого","Отображено "+count+" объектов сообщений. Сверьте фрагменты начала, середины и конца с исходным экспортом. Для длинной беседы список может быть большим.");
+        else card("Проверка содержимого","Сверьте сообщения этой страницы с исходным экспортом. Начало, середина и конец проверяются переходом между страницами.");
+        if(page>0){Button prev=bt("← Предыдущие 100 сообщений");prev.setOnClickListener(v->showImportedConversation(sourceId,title,page-1));content.addView(prev);}
+        if((page+1)*100<total){Button next=bt("Следующие 100 сообщений →");next.setOnClickListener(v->showImportedConversation(sourceId,title,page+1));content.addView(next);}
     }
     void urlDialog(){EditText e=new EditText(this);e.setHint("https://…");new AlertDialog.Builder(this).setTitle("Импорт URL").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Импортировать",(d,w)->{String u=e.getText().toString().trim();if(!u.isEmpty())importer.importUrl(u,new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
     void pasteDialog(){EditText e=new EditText(this);e.setMinLines(10);e.setGravity(Gravity.TOP);new AlertDialog.Builder(this).setTitle("Вставить текст").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Сохранить",(d,w)->{importer.importText("Вставленный текст",e.getText().toString(),new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
