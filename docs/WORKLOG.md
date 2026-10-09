@@ -135,3 +135,10 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Commits:** `c3a41f38a82150c3e2789f61bc032e7a52706e66` (AuthTrace class); `0ccf0c0baef1d25546b0df94ef179a9bb93db62a` (MainActivity instrumentation/UI).
 - **Verification:** source changes are committed. Android compilation, CI, APK artifact inspection and real-device behavior have not yet been verified. No claim of an OAuth fix is made; this change adds observability only.
 - **Risk / follow-up:** token endpoint failures currently need a safe HTTP-status/error-code breadcrumb to distinguish service-side errors from transport/lifecycle failures; add only if source update can be applied safely. Then run Android CI and inspect the exact APK artifact. On-device, perform one authorization attempt and copy the diagnostic trace.
+
+
+### WL-011 verification update — compile regression found and corrected
+
+- First CI run for the diagnostic implementation failed at Java compilation: two literal `\\n` sequences had been inserted between method declarations in `MainActivity.java`.
+- Corrected both separators in commit `78558c8b5bf67bb0dcd226b6a04f41dc06c53520`. This failure is recorded rather than hidden.
+- A new Android build run was triggered for the corrected branch. Result remains pending at this update; inspect the final job result before calling the source buildable.
