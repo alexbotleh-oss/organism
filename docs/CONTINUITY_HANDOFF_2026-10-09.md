@@ -81,3 +81,10 @@ User requirement: document every meaningful development stage so a future assist
 - CI run `37943562566` is queued for `fc3acbe57d745de04953b55cac8e5035d0357f1c`: https://github.com/alexbotleh-oss/organism/actions/runs/37943562566. Build and device behavior are not yet verified.
 - No user database was reset or migrated. Any duplicate rows from a prior version remain untouched; do not re-import or clean them automatically.
 - Next: review CI result, fix failures, then validate the archive on the existing Android installation without re-importing the ZIP. Investigate RAW ZIP metadata and supported official-platform WebView interaction after this check.
+
+
+## CI update — 2026-10-09
+
+The archive/search code commit `fc3acbe57d745de04953b55cac8e5035d0357f1c` passed Android CI. Run `37943562566` successfully assembled and uploaded the debug APK: https://github.com/alexbotleh-oss/organism/actions/runs/37943562566. Independent run `37943562807` also passed and uploaded its APK: https://github.com/alexbotleh-oss/organism/actions/runs/37943562807.
+
+This confirms CI build only. No Android device validation has happened yet. Next: inspect the uploaded artifact, then test archive search and transcript view against the existing installation/database without re-importing the ZIP. Do not automatically remove duplicate records from previous imports.
