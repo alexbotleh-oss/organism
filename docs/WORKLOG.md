@@ -295,3 +295,12 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no database, archive, OAuth credentials, or saved preferences reset. Existing prompt is only prefilled into the composer.
 - **Status:** PARTIAL.
 - **Next action:** inspect the exact source and build result; install on the existing app without clearing data and verify the composer stays visible above the keyboard, the web page remains scrollable, and attachment picker still opens. Then continue with a provider adapter design for supported send/response handling.
+
+
+## 2026-10-09 — WL-024 — Respect Android safe areas in web composer
+
+- **User report:** screenshot shows header/status elements and bottom composer/send button too close to system bars; the user cannot comfortably reach controls. Cookie dialog is rendered by ChatGPT's own website.
+- **Change:** commit `08cb9dafdbc2eae918808886adfa310b178d5a6e` applies Android window insets to the root view, adds safer horizontal/bottom composer padding, and gives the send action a stable width with spacing.
+- **Scope:** layout accessibility only. Does not change provider transport, site DOM, authentication, memory/archive data, or permissions.
+- **Verification:** source committed. CI and on-device test still pending; do not call the layout fixed until tested on the user's device with system navigation and keyboard visible.
+- **Next:** check exact commit's Actions build, then test that header and send button are fully visible/tappable in portrait and with keyboard open. Cookie consent remains a site-owned modal and must be dismissed on the page.
