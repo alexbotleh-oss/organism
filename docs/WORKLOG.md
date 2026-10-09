@@ -194,3 +194,21 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety/privacy:** trace contains no exposed code/token values. No DB, imported archive, saved credentials, or app data was reset/migrated. OAuth scopes, redirect URI and auth behavior were not changed during this diagnostic step.
 - **Status:** OAuth handshake and local credential persistence are device-confirmed for this attempt. Browser completion/return UX and post-authenticated-request behavior remain unverified.
 - **Next action:** inspect the post-auth app state and authenticated-request path without clearing app data; separately reproduce/observe browser completion/return behavior only if it remains a user-facing problem. Do not alter the successful OAuth exchange speculatively.
+
+
+## 2026-10-09 — WL-016 — Manual ChatGPT Web connector MVP
+
+- **Lifecycle:** CHANGED → CI PENDING → DEVICE TEST PENDING.
+- **User goal:** try the official ChatGPT website from ORGANISM instead of relying only on the current API-oriented send path, and make the prepared request inspectable so we can distinguish what ORGANISM prepared from what was actually sent.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`; OAuth handshake and credential persistence were device-confirmed in WL-015, but a subsequent API request displayed `subscription_sharing_usage_limit_exceeded`. The API send path uses `GET /models` and `POST /responses`; no evidence currently shows duplicate API sends for a single tap.
+- **Changes:**
+  - `11c27e21c8fbebceaf943999bdf57f6a0e961afa` — MainActivity adds an explicit ChatGPT Web preparation action and manual response import into the active session. The prepared event is marked `PREPARED_NOT_SENT`; response import is explicitly user-triggered and saved as `ChatGPT Web (manual copy)` with `NOT_VERIFIED` status.
+  - `e4207b093489fede84263797fcd155e1d4a0e23d` — adds `PlatformWebActivity`, which opens `https://chatgpt.com/` in a WebView and offers a button to copy the prepared prompt.
+  - `9c1f95d3d42c8c77e831ad9d8cf8f3572d0c940a` — registers the WebView activity as non-exported.
+  - `2966d7efe2f78f5c61a27f3a33e9cb0fcaaf6344` — documents the MVP contract, limits, data handling, and acceptance checks in `docs/PLATFORM_WEB_CONNECTOR_MVP_v0.1.md`.
+- **Connector boundary:** no JavaScript injection, DOM reading, automated Send click, cookie/session extraction, or credential access is implemented. The user must paste/send the prompt and copy/import the answer manually. This does not bypass usage limits. Embedded WebView authentication compatibility is unknown until device-tested.
+- **Verification:** GitHub Contents API confirmed the source/doc writes. No Android build result has yet been checked for this code, and no physical-device test has been performed. Do not claim the WebView connector works until exact-commit CI and on-device checks pass.
+- **Failure/regression risk:** login may be blocked or unsupported in an embedded WebView. If so, do not bypass platform controls; consider an official browser handoff while retaining manual copy/paste. The API connector remains unchanged.
+- **Data safety:** no database, imported archive, OAuth credentials, or app data was reset or migrated. Pending prompt/context is held in app-private preferences until response import or replacement by another prepared prompt. The user explicitly triggers response import; it is stored as unverified model output.
+- **Status:** PARTIAL — MVP source committed; CI/device verification pending.
+- **Next action:** inspect the exact updated source and CI result. If build passes, install the resulting APK and test one non-sensitive prompt through ChatGPT Web; record whether sign-in works, whether clipboard copy/paste works, and whether one response is saved exactly once. Do not repeat API sends while the plan limit is exhausted.
