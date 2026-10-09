@@ -37,11 +37,11 @@ public final class ContextEngine {
         // model outputs remain explicitly unverified and are never treated as experience.
         out.append("\nRECENT PROJECT DIALOGUE (chronological; last 12 messages):\n");
         ArrayList<String> recentDialogue=new ArrayList<>();
-        Cursor h=db.query("SELECT kind,description,verification_status,occurred_at FROM events WHERE project_id=? AND kind IN ('USER_MESSAGE','MODEL_OUTPUT','ERROR') ORDER BY id DESC LIMIT 12",new String[]{""+project});
+        Cursor h=db.query("SELECT kind,description,occurred_at FROM events WHERE project_id=? AND kind IN ('USER_MESSAGE','MODEL_OUTPUT','ERROR') ORDER BY id DESC LIMIT 12",new String[]{""+project});
         while(h.moveToNext()){
             String kind=h.getString(0);
-            String label="USER_MESSAGE".equals(kind)?"USER":("MODEL_OUTPUT".equals(kind)?"MODEL":"ERROR");
-            recentDialogue.add("- "+h.getString(3)+" ["+label+"/"+nvl(h.getString(2),"UNKNOWN")+"] "+shorten(nvl(h.getString(1),""),900));
+            String label="USER_MESSAGE".equals(kind)?"USER_STATED":("MODEL_OUTPUT".equals(kind)?"MODEL_OUTPUT_NOT_VERIFIED":"ERROR_EVENT");
+            recentDialogue.add("- "+h.getString(2)+" ["+label+"] "+shorten(nvl(h.getString(1),""),900));
         }
         h.close();
         Collections.reverse(recentDialogue);
