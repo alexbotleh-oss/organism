@@ -27,6 +27,12 @@ public class ImportPipeline {
             String lower=name.toLowerCase(Locale.ROOT);String text;
             if(lower.endsWith(".pdf")||"application/pdf".equals(type))text=pdf(bytes);
             else text=decodeText(bytes);
+            bytes=null; // release the original 37+ MB byte buffer before parsing the export
+            if(isChatGptHtmlExport(name,type,text)){
+                importChatHtmlExport(name,uri.toString(),text);
+                l.done("ChatGPT HTML обработан: "+name+"; диалоги разобраны на отдельные сообщения.");
+                return;
+            }
             ingest("FILE",name,uri.toString(),text);l.done("Источник импортирован: "+name);}
         catch(Exception e){l.fail(e.getMessage()==null?e.toString():e.getMessage());}}).start();
     }
@@ -57,7 +63,7 @@ public class ImportPipeline {
             db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
         }else{
             db.event("CHAT_IMPORTED","Диалоговый текст разобран на сообщения: "+name+"; messages="+importedMessages,project,0,src,"STATED","VERIFIED");
-            db.memory("CONTEXT_INDEX",title,"CHAT TRANSCRIPT INDEX v1\\nsource_id: "+src+"\\nmessage_count: "+importedMessages+"\\nraw_source_preserved: true\\nsemantic_extraction: pending\\n",project,0,src,"STATED","NOT_VERIFIED",0.5);
+            db.memory("CONTEXT_INDEX",title,"CHAT TRANSCRIPT INDEX v1\nsource_id: "+src+"\nmessage_count: "+importedMessages+"\nraw_source_preserved: true\nsemantic_extraction: pending\n",project,0,src,"STATED","NOT_VERIFIED",0.5);
         }
         appendEvent("IMPORT",name,src);
         writeSnapshot(project);
@@ -102,96 +108,175 @@ public class ImportPipeline {
         z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","NOT_VERIFIED");writeSnapshot(project);
     }
 
+    private interface JsonObjectHandler { void handle(String jsonObject) throws Exception; }
+
     private void parseChatJson(String name,String json,long rawSourceId)throws Exception{
-        JSONArray conversations=new JSONArray(json);
-        long project=db.project("ORGANISM");
-        for(int i=0;i<conversations.length();i++){
-            JSONObject conversation=conversations.getJSONObject(i);
-            String title=conversation.optString("title","ChatGPT conversation");
-            String raw=conversation.toString();
-            String conversationId=conversation.optString("conversation_id","");
-            long source=db.source("CHAT_EXPORT_CONVERSATION",title,name,null,sha(raw),rawSourceId,conversationId);
-            JSONObject mapping=conversation.optJSONObject("mapping");
-            if(mapping==null||mapping.length()==0){
-                db.event("CHAT_IMPORT_INCOMPLETE","Чат без mapping: "+title,project,0,source,"STATED","NOT_VERIFIED");
+        parseChatJsonRange(name,json,0,json.length(),rawSourceId);
+    }
+
+    private void parseChatJsonRange(String name,String json,int start,int end,long rawSourceId)throws Exception{
+        final long project=db.project("ORGANISM");
+        forEachTopLevelJsonObject(json,start,end, objectText ->
+                parseChatConversation(name,new JSONObject(objectText),rawSourceId,project));
+    }
+
+    // Stream one conversation object at a time. Parsing the whole 35+ MB export as a JSONArray
+    // creates a second huge object graph and can exhaust Android's heap.
+    private void forEachTopLevelJsonObject(String json,int startArray,int endExclusive,JsonObjectHandler handler)throws Exception{
+        if(startArray<0||startArray>=endExclusive||json.charAt(startArray)!='[')
+            throw new JSONException("В ChatGPT JSON не найден массив диалогов");
+        boolean inString=false,escaped=false;
+        int arrayDepth=0,objectDepth=0,objectStart=-1;
+        boolean closed=false;
+        for(int i=startArray;i<endExclusive;i++){
+            char c=json.charAt(i);
+            if(inString){
+                if(escaped)escaped=false;
+                else if(c=='\\')escaped=true;
+                else if(c=='"')inString=false;
                 continue;
             }
-
-            // Build an explicit node index first. JSON object key iteration order is not chronology.
-            LinkedHashMap<String,JSONObject> nodes=new LinkedHashMap<>();
-            Iterator<String> keys=mapping.keys();
-            while(keys.hasNext()){
-                String nodeId=keys.next();
-                JSONObject node=mapping.optJSONObject(nodeId);
-                if(node!=null)nodes.put(nodeId,node);
+            if(c=='"'){inString=true;continue;}
+            if(c=='['){arrayDepth++;continue;}
+            if(c==']'){
+                arrayDepth--;
+                if(arrayDepth==0){closed=true;break;}
+                continue;
             }
-
-            ArrayList<String> ordered=orderChatNodes(nodes);
-            String currentNode=conversation.optString("current_node","");
-            String header="CHAT EXPORT INDEX v1\n"
-                    +"conversation_id: "+conversation.optString("conversation_id","UNKNOWN")+"\n"
-                    +"title: "+title+"\n"
-                    +"current_node: "+(currentNode.isEmpty()?"UNKNOWN":currentNode)+"\n"
-                    +"node_count: "+nodes.size()+"\n"
-                    +"ordering: parent/children traversal; disconnected nodes sorted by message time and node id\n"
-                    +"provenance_source_id: "+source+"\n"
-                    +"message_nodes: stored as individually searchable memory objects\n";
-
-            int messageCount=0;
-            for(String nodeId:ordered){
-                JSONObject node=nodes.get(nodeId);
-                if(node==null)continue;
-                String parent=jsonScalar(node.opt("parent"));
-                JSONArray children=node.optJSONArray("children");
-                String childIds=children==null?"[]":children.toString();
-                JSONObject message=node.optJSONObject("message");
-                if(message==null){
-                    db.event("CHAT_NODE_IMPORTED","conversation="+title+"; node="+nodeId+
-                            "; parent="+parent+"; children="+childIds+"; message=none",
-                            project,0,source,"STATED","NOT_VERIFIED");
-                    continue;
+            if(c=='{'&&(objectDepth>0||arrayDepth==1)){
+                if(objectDepth==0)objectStart=i;
+                objectDepth++;
+            }else if(c=='}'&&objectDepth>0){
+                objectDepth--;
+                if(objectDepth==0&&objectStart>=0){
+                    handler.handle(json.substring(objectStart,i+1));
+                    objectStart=-1;
                 }
-
-                JSONObject author=message.optJSONObject("author");
-                String role=author==null?"unknown":author.optString("role","unknown");
-                String authorName=author==null?"":author.optString("name","");
-                String timestamp=jsonScalar(message.opt("create_time"));
-                String messageId=message.optString("id",nodeId);
-                String channel=message.optString("channel","");
-                JSONObject content=message.optJSONObject("content");
-                String body=chatMessageText(content);
-
-                String nodeText="[CHAT_MESSAGE conversation_id="+conversationId+" source_id="+source+
-                        " node_id="+nodeId+" parent="+parent+" children="+childIds+
-                        " current="+nodeId.equals(currentNode)+"]\n"
-                        +"message_id: "+messageId+" | role: "+role
-                        +(authorName.isEmpty()?"":" | author: "+authorName)
-                        +" | time: "+timestamp
-                        +(channel.isEmpty()?"":" | channel: "+channel)+"\n"
-                        +role+": "+body;
-
-                // One searchable memory object per message keeps later turns retrievable
-                // instead of truncating an entire long conversation to its first characters.
-                db.memory("CHAT_MESSAGE",title+" [conversation "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+" node "+nodeId+"]",nodeText,
-                        project,0,source,"STATED","NOT_VERIFIED",0.5);
-                // Store structural provenance separately from semantic interpretation.
-                db.event("CHAT_MESSAGE_IMPORTED","conversation="+title+"; node="+nodeId+
-                        "; message="+messageId+"; parent="+parent+"; children="+childIds+
-                        "; role="+role+"; time="+timestamp+"; channel="+channel,
-                        project,0,source,"STATED","NOT_VERIFIED");
-                messageCount++;
             }
+        }
+        if(!closed||objectDepth!=0)throw new JSONException("ChatGPT JSON обрезан или имеет неверную структуру");
+    }
 
-            if(nodes.size()>0){
-                db.event("CHAT_IMPORTED","Чат импортирован: "+title+
-                        "; nodes="+nodes.size()+"; messages="+messageCount,
-                        project,0,source,"STATED","VERIFIED");
-                db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\n",
-                        project,0,source,"STATED","NOT_VERIFIED",0.5);
-            }else{
-                db.event("CHAT_IMPORT_INCOMPLETE","В чате не найдено ни одного узла: "+title,
-                        project,0,source,"STATED","NOT_VERIFIED");
+    private boolean isChatGptHtmlExport(String name,String type,String text){
+        if(text==null)return false;
+        String lower=name.toLowerCase(Locale.ROOT);
+        return (lower.endsWith(".html")||"text/html".equalsIgnoreCase(type))
+                && text.contains("ChatGPT Data Export")
+                && (text.contains("var jsonData")||text.contains("let jsonData")||text.contains("const jsonData"));
+    }
+
+    private void importChatHtmlExport(String name,String path,String html)throws Exception{
+        int[] jsonRange=findChatGptJsonDataRange(html);
+        if(jsonRange==null)throw new IOException("В HTML не найден массив jsonData из экспорта ChatGPT");
+        String checksum=sha(html);
+        long rawSource=db.source("CHAT_EXPORT_RAW",name,path,null,checksum);
+        writeRaw(name,html);
+        parseChatJsonRange(name,html,jsonRange[0],jsonRange[1],rawSource);
+        long project=db.project("ORGANISM");
+        db.event("CHAT_HTML_EXPORT_IMPORTED","HTML-экспорт ChatGPT разобран потоково: "+name,project,0,rawSource,"STATED","VERIFIED");
+        appendEvent("CHAT_HTML_EXPORT_IMPORTED",name,rawSource);
+        writeSnapshot(project);
+    }
+
+    private int[] findChatGptJsonDataRange(String html)throws IOException{
+        String[] markers={"var jsonData","let jsonData","const jsonData"};
+        int marker=-1;
+        for(String m:markers){marker=html.indexOf(m);if(marker>=0)break;}
+        if(marker<0)return null;
+        int equals=html.indexOf('=',marker);
+        if(equals<0)return null;
+        int start=equals+1;
+        while(start<html.length()&&Character.isWhitespace(html.charAt(start)))start++;
+        if(start>=html.length()||html.charAt(start)!='[')return null;
+        boolean inString=false,escaped=false;int depth=0;
+        for(int i=start;i<html.length();i++){
+            char c=html.charAt(i);
+            if(inString){
+                if(escaped)escaped=false;
+                else if(c=='\\')escaped=true;
+                else if(c=='"')inString=false;
+                continue;
             }
+            if(c=='"'){inString=true;continue;}
+            if(c=='[')depth++;
+            else if(c==']'&&--depth==0)return new int[]{start,i+1};
+        }
+        throw new IOException("Массив jsonData в HTML-экспорте обрезан");
+    }
+
+    private void parseChatConversation(String name,JSONObject conversation,long rawSourceId,long project)throws Exception{
+        String title=conversation.optString("title","ChatGPT conversation");
+        String raw=conversation.toString();
+        String conversationId=conversation.optString("conversation_id",conversation.optString("id",""));
+        long source=db.source("CHAT_EXPORT_CONVERSATION",title,name,null,sha(raw),rawSourceId,conversationId);
+        JSONObject mapping=conversation.optJSONObject("mapping");
+        if(mapping==null||mapping.length()==0){
+            db.event("CHAT_IMPORT_INCOMPLETE","Чат без mapping: "+title,project,0,source,"STATED","NOT_VERIFIED");
+            return;
+        }
+        LinkedHashMap<String,JSONObject> nodes=new LinkedHashMap<>();
+        Iterator<String> keys=mapping.keys();
+        while(keys.hasNext()){
+            String nodeId=keys.next();
+            JSONObject node=mapping.optJSONObject(nodeId);
+            if(node!=null)nodes.put(nodeId,node);
+        }
+        ArrayList<String> ordered=orderChatNodes(nodes);
+        String currentNode=conversation.optString("current_node","");
+        String header="CHAT EXPORT INDEX v1\n"
+                +"conversation_id: "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+"\n"
+                +"title: "+title+"\n"
+                +"current_node: "+(currentNode.isEmpty()?"UNKNOWN":currentNode)+"\n"
+                +"node_count: "+nodes.size()+"\n"
+                +"ordering: parent/children traversal; disconnected nodes sorted by message time and node id\n"
+                +"provenance_source_id: "+source+"\n"
+                +"message_nodes: stored as individually searchable memory objects\n";
+        int messageCount=0;
+        for(String nodeId:ordered){
+            JSONObject node=nodes.get(nodeId);
+            if(node==null)continue;
+            String parent=jsonScalar(node.opt("parent"));
+            JSONArray children=node.optJSONArray("children");
+            String childIds=children==null?"[]":children.toString();
+            JSONObject message=node.optJSONObject("message");
+            if(message==null){
+                db.event("CHAT_NODE_IMPORTED","conversation="+title+"; node="+nodeId+
+                        "; parent="+parent+"; children="+childIds+"; message=none",
+                        project,0,source,"STATED","NOT_VERIFIED");
+                continue;
+            }
+            JSONObject author=message.optJSONObject("author");
+            String role=author==null?"unknown":author.optString("role","unknown");
+            String authorName=author==null?"":author.optString("name","");
+            String timestamp=jsonScalar(message.opt("create_time"));
+            String messageId=message.optString("id",nodeId);
+            String channel=message.optString("channel","");
+            String body=chatMessageText(message.optJSONObject("content"));
+            String nodeText="[CHAT_MESSAGE conversation_id="+conversationId+" source_id="+source+
+                    " node_id="+nodeId+" parent="+parent+" children="+childIds+
+                    " current="+nodeId.equals(currentNode)+"]\n"
+                    +"message_id: "+messageId+" | role: "+role
+                    +(authorName.isEmpty()?"":" | author: "+authorName)
+                    +" | time: "+timestamp
+                    +(channel.isEmpty()?"":" | channel: "+channel)+"\n"
+                    +role+": "+body;
+            db.memory("CHAT_MESSAGE",title+" [conversation "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+" node "+nodeId+"]",nodeText,
+                    project,0,source,"STATED","NOT_VERIFIED",0.5);
+            db.event("CHAT_MESSAGE_IMPORTED","conversation="+title+"; node="+nodeId+
+                    "; message="+messageId+"; parent="+parent+"; children="+childIds+
+                    "; role="+role+"; time="+timestamp+"; channel="+channel,
+                    project,0,source,"STATED","NOT_VERIFIED");
+            messageCount++;
+        }
+        if(nodes.size()>0){
+            db.event("CHAT_IMPORTED","Чат импортирован: "+title+
+                    "; nodes="+nodes.size()+"; messages="+messageCount,
+                    project,0,source,"STATED","VERIFIED");
+            db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\n",
+                    project,0,source,"STATED","NOT_VERIFIED",0.5);
+        }else{
+            db.event("CHAT_IMPORT_INCOMPLETE","В чате не найдено ни одного узла: "+title,
+                    project,0,source,"STATED","NOT_VERIFIED");
         }
     }
 
