@@ -177,10 +177,7 @@ public class ImportPipeline {
             if(c=='{' ){if(objectDepth==0)object.setLength(0);objectDepth++;object.append(c);continue;}
             if(objectDepth>0){object.append(c);if(c=='}'){objectDepth--;if(objectDepth==0){
                 JSONObject conversation=new JSONObject(object.toString());
-                String title=conversation.optString("title","ChatGPT conversation");
-                String conversationId=conversation.optString("conversation_id",conversation.optString("id",""));
-                long source=db.source("CHAT_EXPORT_CONVERSATION",title,archiveName+"!/"+path,null,sha(conversation.toString()),rawSourceId,conversationId);
-                parseChatConversation(path,conversation,source,project);imported++;
+                parseChatConversation(path,conversation,rawSourceId,project);imported++;
             }}continue;}
             if(c==']'){closed=true;break;}
         }
