@@ -734,8 +734,9 @@ class OrganismCore:
         """Diagnostic export for tests/backups; does not expose provider credentials."""
         with self._connect() as conn:
             result: dict[str, Any] = {"schema_version": SCHEMA_VERSION}
-            for table in ("source_documents", "raw_segments", "events", "claims", "claim_sources",
-                          "verifications", "experiences", "experience_sources", "user_directives",
-                          "conflicts", "applications", "tombstones"):
+            for table in ("projects", "project_states", "tasks", "relations", "source_documents",
+                          "raw_segments", "events", "claims", "claim_sources", "verifications",
+                          "experiences", "experience_sources", "user_directives", "conflicts",
+                          "applications", "tombstones"):
                 result[table] = [dict(r) for r in conn.execute(f"SELECT * FROM {table}")]
             return result
