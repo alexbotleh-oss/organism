@@ -49,7 +49,8 @@ public class ImportPipeline {
         if(normalized.isEmpty()){db.event("ERROR","Источник пустой: "+name,project,0,src,"STATED","VERIFIED");return;}
         String title=title(name,normalized);
         long mem=db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
-        extractStructure(normalized,project,src,mem,title);
+        // Do not apply recipe-keyword heuristics to arbitrary imports or chat history.
+        // Semantic extraction belongs to the provenance-aware M1 pipeline and must cite source spans.
         writeRaw(name,normalized);
         appendEvent("IMPORT",name,src);
         writeSnapshot(project);
