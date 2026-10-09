@@ -116,3 +116,14 @@ The build is verified; device behavior is not. Next action is install/test this 
 - **Limitations:** Android browser policy may block automatic external-app launch, so the callback page has a manual return link. OAuth token exchange/validation logic was not altered. The reported \`subscription_sharing_usage_limit_exceeded\` remains a separate usage-limit issue and is not bypassed.
 - **Data safety:** no database or saved credentials were reset, deleted, or migrated.
 - **Next action:** check CI for the new branch head; if green, install the exact build on the existing phone and test browser → callback → app, verifying that the OAuth token exchange finishes and no duplicate activity appears. Record the device result separately.
+
+
+## Handoff update — OAuth diagnostics first (2026-10-09)
+
+- The user proposes the correct next step: instrument the phone so a diagnostic trace shows which commands/events the app initiates and which responses/events it receives, exposing the exact stage that stalls instead of guessing from screenshots.
+- Screenshot evidence: the authorization page at auth.openai.com remains on a spinner after the user approves ChatGPT plan sharing. The user reports that manually switching back to ORGANISM then causes the app to show connected. This is evidence of a stalled/unfinished visible browser flow, not proof that the OAuth exchange itself succeeded or failed.
+- Work-log: added WL-010 in docs/WORKLOG.md; commit fac44d4c29c17df6447789dc8a69c1f1cbd3216a.
+- Implementation status: diagnostics UI/log has NOT yet been implemented, built, or tested on device. Do not claim otherwise.
+- Instrumentation requirements: ordered timestamps and named stages for browser launch, callback listener readiness, callback arrival/timeout, state/PKCE validation status, token exchange outcome, persisted auth state, activity resume/deep-link events; redacted errors/statuses; copy/export trace. Never log auth codes, tokens, cookies, passwords, or unnecessary personal information.
+- Next action: inspect current branch HEAD and the exact OAuth code path (AndroidManifest.xml, MainActivity, callback listener/server, token exchange and connection-state persistence); then implement diagnostics before changing behavior further. Add tests and verify CI for the exact commit. Have the user run one authorization attempt on the phone and share the trace; distinguish app/browser/callback/token-exchange failure from the separate subscription_sharing_usage_limit_exceeded service limit.
+- Data safety: no database, imported archive, saved credentials, or current auth state was reset or migrated.
