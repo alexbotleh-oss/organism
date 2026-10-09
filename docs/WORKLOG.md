@@ -86,3 +86,14 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** read-only query/UI change; no user records are modified or deleted.
 - **Status:** PARTIAL. Previous commit build passed, but this additional UI change still needs its own CI result. Existing records are preserved.
 - **Next:** confirm Android CI for `bd0653fb2195997cfb7df8915d6cac8ebd86fc41`; then test the updated APK on the existing phone/database without re-importing the ZIP.
+
+
+## 2026-10-09 — WL-008 — CI verification after archive empty-row filter
+
+- **Lifecycle:** VERIFIED (CI only) → HANDED_OFF.
+- **Commit tested:** `bd0653fb2195997cfb7df8915d6cac8ebd86fc41`.
+- **Evidence:** Android build run `37943950470` succeeded: https://github.com/alexbotleh-oss/organism/actions/runs/37943950470. APK workflow run `37943950487` succeeded, including `Build debug APK` and `Upload APK`: https://github.com/alexbotleh-oss/organism/actions/runs/37943950487.
+- **Artifact:** `organism-debug-apk`, 11,345,011 bytes, SHA-256 `77b3ecc9d02a8a6c784b754cde53b0758af0b47a5ce7abb42a2b54ed0ce20f9c`, artifact ZIP URL https://api.github.com/repos/alexbotleh-oss/organism/actions/artifacts/11622002797/zip (GitHub authentication may be required).
+- **Boundary:** CI confirms build and artifact upload only. No on-device validation or database inspection was performed.
+- **Data safety:** no user data changed; empty source rows are hidden from archive results, not deleted.
+- **Next:** test this APK on the existing phone and database; validate search by title and message text, open/copy transcript, and verify imported conversation/message counts without re-importing the ZIP.
