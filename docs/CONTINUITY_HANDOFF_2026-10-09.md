@@ -44,3 +44,12 @@ The user selected a ZIP containing the official ChatGPT data export. The app pre
 - Build workflows were observed running for importer commit `f5e35a7e4e8987c285f83fdf99241fa4ba35cd41`; confirm final status for the latest head before distributing an APK. No on-device ZIP test has yet been confirmed.
 
 - Build check on importer commit failed because the preceding full-screen chat layout used the wrong Java LinearLayout.addView overload in MainActivity lines 73–74. Fixed argument order in commit `cd1009cc1105f9e148ce8c0d8d6d42fae8442cff`. This was a compile-time failure, not an import-pipeline failure. Re-run/confirm CI on the fixed head before distributing an APK.
+
+
+## Handoff update — 2026-10-09: archive/search gap and work logging
+
+User tested the APK on a real Android phone and reported that imported conversations cannot be browsed or searched; old/new chat history is not usable. Screenshots show 74 conversations, 10,034 saved messages, one RAW ZIP, and RAW characters = 0. These are UI-reported counts, not yet proof of complete/accurate import. Chat send returns `subscription_sharing_usage_limit_exceeded`, separate from local archive access. Do not ask the user to re-import the same ZIP or reset/delete their database.
+
+Next stage: inspect `Db.java` and `ImportPipeline.java`; map stored conversation IDs, titles, timestamps, roles, message nodes, and provenance. Specify and implement a searchable imported-conversation archive with full ordered transcript viewing and a clear distinction between imported ChatGPT chats and ORGANISM sessions. Verify idempotency and preserve existing data. Investigate RAW metadata and replace the misleading character count with accurate file metadata. Build evidence and device validation must be recorded separately.
+
+User requirement: document every meaningful development stage so a future assistant can resume with continuity. Follow `docs/WORKLOG_AND_CONTINUITY_PROTOCOL_v1.0.md` and append to `docs/WORKLOG.md`; also update this handoff at the end of each substantial session. Protocol commit: `b8cad3184875ed40229f06d45d17bbc9bbdbb15e`. Device-feedback report: `docs/DEVICE_FEEDBACK_2026-10-09_CHAT_ARCHIVE_GAP.md`. Latest work-log commit before this handoff update: `b9e631f5591927f8cfb44150e50cd5a09c6b973a`. No application code was changed during these documentation updates; no new build was run.
