@@ -248,6 +248,8 @@ class OrganismCore:
         BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;
         """
         with self._connect() as conn:
+            if self.db_path != ":memory:":
+                conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(schema)
             # Forward-compatible additive migration for databases created by an earlier CORE build.
             source_columns = {r["name"] for r in conn.execute("PRAGMA table_info(source_documents)")}
