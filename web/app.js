@@ -72,7 +72,7 @@ async function sendChat(){
  finally{busy=false;render()}
 }
 function createExperienceFromImport(text,filename){
- var source={id:uid("SRC"),type:"TXT",title:filename,content:text,createdAt:Date.now()};state.sources.push(source);
+ var source={id:uid("SRC"),type:"TXT",title:filename,content:text.slice(0,200000),createdAt:Date.now()};state.sources.push(source);
  var lines=text.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean),chunks=[],i,count=0;
  for(i=0;i<lines.length;i+=8)chunks.push(lines.slice(i,i+8).join("\n"));
  chunks.slice(0,40).forEach(function(chunk){
