@@ -127,6 +127,9 @@ public class MainActivity extends Activity {
         android.database.Cursor events=db.query("SELECT COUNT(*) FROM events WHERE kind='CHAT_MESSAGE_IMPORTED'",null);
         long importedEvents=0;if(events.moveToFirst())importedEvents=events.getLong(0);events.close();
         card("Сводка хранилища","RAW-файлов ChatGPT: "+rawCount+"\nОбъектов бесед: "+conversations+"\nСохранённых сообщений: "+messageObjects+"\nСобытий импорта сообщений: "+importedEvents+"\nСимволов в RAW: "+rawChars+"\n\nВажно: повторный импорт пока может создавать дубликаты. Эти числа — количество записей в базе, а не число уникальных сообщений.");
+        android.database.Cursor rawFiles=db.query("SELECT id,source_name,checksum,LENGTH(raw_text) FROM sources WHERE source_type='CHAT_EXPORT_RAW' ORDER BY id DESC LIMIT 20",null);
+        while(rawFiles.moveToNext()){long rawId=rawFiles.getLong(0);String rawName=rawFiles.getString(1);String rawHash=rawFiles.getString(2);long rawLength=rawFiles.getLong(3);Button rawButton=bt("Посмотреть RAW: "+rawName);rawButton.setOnClickListener(v->showRawChatExport(rawId,rawName));content.addView(rawButton);content.addView(tv("SHA-256: "+rawHash+" | символов: "+rawLength,11,Color.DKGRAY));}
+        rawFiles.close();
         android.database.Cursor c=db.query("SELECT s.id,s.source_name,s.external_id,s.checksum,(SELECT COUNT(*) FROM events e WHERE e.source_id=s.id AND e.kind='CHAT_MESSAGE_IMPORTED'),(SELECT COUNT(*) FROM memory_objects m WHERE m.source_id=s.id AND m.kind='CHAT_MESSAGE'),(SELECT description FROM events e WHERE e.source_id=s.id AND e.kind='CHAT_IMPORTED' ORDER BY e.id DESC LIMIT 1) FROM sources s WHERE s.source_type='CHAT_EXPORT_CONVERSATION' ORDER BY s.id DESC LIMIT 100",null);
         if(!c.moveToFirst()){c.close();card("Беседы","Импортированные беседы не найдены. Выберите ChatGPT ZIP на экране «Импорт».");Button back=bt("← Назад к импорту");back.setOnClickListener(v->showImport());content.addView(back);return;}
         do{
@@ -138,6 +141,17 @@ public class MainActivity extends Activity {
         }while(c.moveToNext());
         c.close();
         Button sources=bt("Открыть список источников");sources.setOnClickListener(v->showSources());content.addView(sources);
+    }
+    void showRawChatExport(long rawSourceId,String name){
+        clear("RAW-экспорт");
+        Button back=bt("← К проверке импорта");back.setOnClickListener(v->showImportAudit());content.addView(back);
+        android.database.Cursor c=db.query("SELECT checksum,LENGTH(raw_text),raw_text FROM sources WHERE id=? AND source_type='CHAT_EXPORT_RAW'",new String[]{""+rawSourceId});
+        if(!c.moveToFirst()){c.close();card("RAW не найден","Исходный JSON не найден в таблице sources.");return;}
+        String hash=c.getString(0);long length=c.getLong(1);String raw=c.getString(2);c.close();
+        card(name,"Исходный RAW из SQLite. Размер: "+length+" символов. SHA-256: "+hash+"\nПоказаны начало и конец, чтобы не перегружать экран; полный текст остаётся сохранённым в базе.");
+        String preview=raw==null?"[raw_text отсутствует]":raw.substring(0,Math.min(5000,raw.length()));
+        TextView first=tv("НАЧАЛО RAW\n"+preview,12,Color.rgb(35,43,58));first.setTextIsSelectable(true);first.setPadding(12,12,12,12);first.setBackgroundColor(Color.WHITE);content.addView(first);
+        if(raw!=null&&raw.length()>5000){String tail=raw.substring(Math.max(0,raw.length()-3000));TextView last=tv("КОНЕЦ RAW\n"+tail,12,Color.rgb(35,43,58));last.setTextIsSelectable(true);last.setPadding(12,12,12,12);last.setBackgroundColor(Color.WHITE);content.addView(last);}
     }
     void showImportedConversation(long sourceId,String title){
         clear("Проверка беседы");
