@@ -140,7 +140,7 @@ public final class ContextEngine {
         if(n==0)out.append("- no direct contradiction detected by lightweight check\n");
     }
 
-    private String format(Candidate c){return "- "+c.id+" score="+round(c.score)+" conf="+round(c.confidence)+" ["+nvl(c.status,"")+"/"+nvl(c.verification,"")+"] "+nvl(c.title,"")+": "+shorten(nvl(c.content,""),900);}
+    private String format(Candidate c){return "- "+c.id+" score="+round(c.score)+" conf="+round(c.confidence)+" ["+nvl(c.status,"")+"/"+nvl(c.verification,"")+"] "+nvl(c.title,"")+": "+shorten(nvl(c.content,""),1400);}
 
     private static void sort(List<Candidate>a){Collections.sort(a,(x,y)->Double.compare(y.score,x.score));}
     private static List<Candidate> trimUnique(List<Candidate>a,int n){LinkedHashMap<String,Candidate>m=new LinkedHashMap<>();for(Candidate c:a){if(!m.containsKey(c.id)||m.get(c.id).score<c.score)m.put(c.id,c);if(m.size()>=n)break;}return new ArrayList<>(m.values());}
