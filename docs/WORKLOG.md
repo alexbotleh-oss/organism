@@ -26,3 +26,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Status:** PARTIAL. Process protocol and device feedback are committed. The existing continuity handoff still needs a concise update reflecting the new archive/search blocker and latest docs.
 - **Data safety:** no application database or user data touched.
 - **Next action:** inspect `Db.java` and `ImportPipeline.java`; design and document the imported-conversation browser/search against the current schema before implementation.
+
+
+## 2026-10-09 — WL-003 — Add universal project entry instructions
+
+- **Lifecycle:** CHANGED → VERIFIED (documentation only).
+- **Goal:** give any assistant entering any ORGANISM project chat a short, clear guide to working style, source-of-truth files, product invariants, safety rules, and current priority.
+- **Baseline:** branch `fix/zip-import-crash-and-archive-restore`; prior handoff update commit `713d121ef9f3be215675bb5522be70ef63b38e1b`.
+- **Change:** added root `PROJECT_INSTRUCTIONS.md` in commit `0780db0a81e003bc3cdbf99050e6b1b27bfb9868`.
+- **Contents:** working style and evidence honesty; ordered navigation to handoff/protocol/work log/feature notes; “one memory, different connectors”; data safety; current imported-conversation archive/search priority; required stage logging.
+- **Verification:** GitHub Contents API confirmed file creation and commit SHA. No application code changed; no build or device test run.
+- **Status:** DONE for repository entry document. It has not been automatically inserted into ChatGPT Project Settings; user may need to copy its contents into the Project Instructions UI. The tracked file remains the source of truth if that setting is unavailable.
+- **Data safety:** no application database or user data touched.
+- **Next action:** update the continuity handoff to point to `PROJECT_INSTRUCTIONS.md`, then resume source inspection for imported-chat browsing/search.
