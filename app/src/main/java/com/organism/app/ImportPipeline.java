@@ -82,11 +82,170 @@ public class ImportPipeline {
     }
 
     private void parseChatJson(String name,String json)throws Exception{
-        JSONArray arr=new JSONArray(json);long project=db.project("ORGANISM");
-        for(int i=0;i<arr.length();i++){JSONObject c=arr.getJSONObject(i);String title=c.optString("title","ChatGPT conversation");String raw=c.toString();long src=db.source("CHAT_EXPORT",title,name,raw,sha(raw));StringBuilder transcript=new StringBuilder();JSONObject map=c.optJSONObject("mapping");
-            if(map!=null){Iterator<String> keys=map.keys();while(keys.hasNext()){JSONObject node=map.optJSONObject(keys.next());if(node==null)continue;JSONObject msg=node.optJSONObject("message");if(msg==null)continue;JSONObject author=msg.optJSONObject("author");String role=author==null?"unknown":author.optString("role","unknown");JSONObject content=msg.optJSONObject("content");if(content==null)continue;JSONArray parts=content.optJSONArray("parts");if(parts!=null)for(int j=0;j<parts.length();j++)if(parts.optString(j,null)!=null)transcript.append(role).append(": ").append(parts.optString(j)).append("\n");}}
-            if(transcript.length()>0){db.event("USER_MESSAGE","Импортирован чат: "+title,project,0,src,"STATED","VERIFIED");db.memory("CONTEXT",title,transcript.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);}
+        JSONArray conversations=new JSONArray(json);
+        long project=db.project("ORGANISM");
+        for(int i=0;i<conversations.length();i++){
+            JSONObject conversation=conversations.getJSONObject(i);
+            String title=conversation.optString("title","ChatGPT conversation");
+            String raw=conversation.toString();
+            long source=db.source("CHAT_EXPORT",title,name,raw,sha(raw));
+            JSONObject mapping=conversation.optJSONObject("mapping");
+            if(mapping==null||mapping.length()==0){
+                db.event("CHAT_IMPORT_INCOMPLETE","Чат без mapping: "+title,project,0,source,"STATED","NOT_VERIFIED");
+                continue;
+            }
+
+            // Build an explicit node index first. JSON object key iteration order is not chronology.
+            LinkedHashMap<String,JSONObject> nodes=new LinkedHashMap<>();
+            Iterator<String> keys=mapping.keys();
+            while(keys.hasNext()){
+                String nodeId=keys.next();
+                JSONObject node=mapping.optJSONObject(nodeId);
+                if(node!=null)nodes.put(nodeId,node);
+            }
+
+            ArrayList<String> ordered=orderChatNodes(nodes);
+            String currentNode=conversation.optString("current_node","");
+            StringBuilder transcript=new StringBuilder();
+            transcript.append("CHAT EXPORT STRUCTURE v1\\n")
+                    .append("conversation_id: ").append(conversation.optString("conversation_id","UNKNOWN")).append("\\n")
+                    .append("title: ").append(title).append("\\n")
+                    .append("current_node: ").append(currentNode.isEmpty()?"UNKNOWN":currentNode).append("\\n")
+                    .append("node_count: ").append(nodes.size()).append("\\n")
+                    .append("ordering: parent/children traversal; disconnected nodes sorted by message time and node id\\n\\n");
+
+            int messageCount=0;
+            for(String nodeId:ordered){
+                JSONObject node=nodes.get(nodeId);
+                if(node==null)continue;
+                String parent=jsonScalar(node.opt("parent"));
+                JSONArray children=node.optJSONArray("children");
+                String childIds=children==null?"[]":children.toString();
+                JSONObject message=node.optJSONObject("message");
+                transcript.append("[NODE id=").append(nodeId)
+                        .append(" parent=").append(parent)
+                        .append(" children=").append(childIds)
+                        .append(" current=").append(nodeId.equals(currentNode))
+                        .append("]\\n");
+
+                if(message==null){
+                    transcript.append("[STRUCTURAL NODE WITHOUT MESSAGE]\\n\\n");
+                    db.event("CHAT_NODE_IMPORTED","conversation="+title+"; node="+nodeId+
+                            "; parent="+parent+"; children="+childIds+"; message=none",
+                            project,0,source,"STATED","NOT_VERIFIED");
+                    continue;
+                }
+
+                JSONObject author=message.optJSONObject("author");
+                String role=author==null?"unknown":author.optString("role","unknown");
+                String authorName=author==null?"":author.optString("name","");
+                String timestamp=jsonScalar(message.opt("create_time"));
+                String messageId=message.optString("id",nodeId);
+                String channel=message.optString("channel","");
+                JSONObject content=message.optJSONObject("content");
+                String body=chatMessageText(content);
+
+                transcript.append("message_id: ").append(messageId)
+                        .append(" | role: ").append(role)
+                        .append(authorName.isEmpty()?"":" | author: "+authorName)
+                        .append(" | time: ").append(timestamp)
+                        .append(channel.isEmpty()?"":" | channel: "+channel)
+                        .append("\\n")
+                        .append(role).append(": ").append(body).append("\\n\\n");
+
+                // Store structural provenance separately from semantic interpretation.
+                // Imported text is not promoted to verified knowledge or experience.
+                db.event("CHAT_MESSAGE_IMPORTED","conversation="+title+"; node="+nodeId+
+                        "; message="+messageId+"; parent="+parent+"; children="+childIds+
+                        "; role="+role+"; time="+timestamp+"; channel="+channel,
+                        project,0,source,"STATED","NOT_VERIFIED");
+                messageCount++;
+            }
+
+            if(nodes.size()>0){
+                db.event("CHAT_IMPORTED","Чат импортирован: "+title+
+                        "; nodes="+nodes.size()+"; messages="+messageCount,
+                        project,0,source,"STATED","VERIFIED");
+                db.memory("CONTEXT",title,transcript.toString(),project,0,source,
+                        "STATED","NOT_VERIFIED",0.5);
+            }else{
+                db.event("CHAT_IMPORT_INCOMPLETE","В чате не найдено ни одного узла: "+title,
+                        project,0,source,"STATED","NOT_VERIFIED");
+            }
         }
+    }
+
+    private ArrayList<String> orderChatNodes(LinkedHashMap<String,JSONObject> nodes){
+        ArrayList<String> ordered=new ArrayList<>();
+        HashSet<String> visited=new HashSet<>();
+        ArrayList<String> roots=new ArrayList<>();
+        for(Map.Entry<String,JSONObject> entry:nodes.entrySet()){
+            String parent=jsonScalar(entry.getValue().opt("parent"));
+            if(parent.isEmpty()||!nodes.containsKey(parent))roots.add(entry.getKey());
+        }
+        Comparator<String> byTimeThenId=(a,b)->{
+            double ta=chatNodeTime(nodes.get(a)),tb=chatNodeTime(nodes.get(b));
+            int time=Double.compare(ta,tb);
+            return time!=0?time:a.compareTo(b);
+        };
+        Collections.sort(roots,byTimeThenId);
+        for(String root:roots)appendChatSubtree(root,nodes,visited,ordered);
+
+        // Include orphaned/cyclic nodes deterministically rather than silently dropping them.
+        ArrayList<String> leftovers=new ArrayList<>();
+        for(String id:nodes.keySet())if(!visited.contains(id))leftovers.add(id);
+        Collections.sort(leftovers,byTimeThenId);
+        for(String id:leftovers)appendChatSubtree(id,nodes,visited,ordered);
+        return ordered;
+    }
+
+    private void appendChatSubtree(String first,LinkedHashMap<String,JSONObject> nodes,
+                                   Set<String> visited,List<String> ordered){
+        ArrayDeque<String> stack=new ArrayDeque<>();
+        stack.push(first);
+        while(!stack.isEmpty()){
+            String id=stack.pop();
+            if(!visited.add(id))continue;
+            ordered.add(id);
+            JSONObject node=nodes.get(id);
+            JSONArray children=node==null?null:node.optJSONArray("children");
+            if(children==null)continue;
+            // Reverse-push so traversal respects the source's declared child order.
+            for(int i=children.length()-1;i>=0;i--){
+                String child=children.optString(i,"");
+                if(!child.isEmpty()&&nodes.containsKey(child)&&!visited.contains(child))stack.push(child);
+            }
+        }
+    }
+
+    private double chatNodeTime(JSONObject node){
+        if(node==null)return Double.MAX_VALUE;
+        JSONObject message=node.optJSONObject("message");
+        if(message==null)return Double.MAX_VALUE;
+        Object time=message.opt("create_time");
+        if(time instanceof Number)return ((Number)time).doubleValue();
+        try{return Double.parseDouble(String.valueOf(time));}
+        catch(Exception ignored){return Double.MAX_VALUE;}
+    }
+
+    private String jsonScalar(Object value){
+        if(value==null||value==JSONObject.NULL)return "";
+        return value instanceof String?(String)value:String.valueOf(value);
+    }
+
+    private String chatMessageText(JSONObject content){
+        if(content==null)return "[NO CONTENT OBJECT]";
+        JSONArray parts=content.optJSONArray("parts");
+        if(parts==null)return content.toString();
+        StringBuilder body=new StringBuilder();
+        for(int i=0;i<parts.length();i++){
+            if(i>0)body.append("\\n");
+            Object part=parts.opt(i);
+            if(part instanceof String)body.append((String)part);
+            else if(part==null||part==JSONObject.NULL)body.append("[NULL PART]");
+            else body.append(JSONObject.valueToString(part));
+        }
+        return body.toString();
     }
 
     private byte[] readZipEntry(ZipInputStream z)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=z.read(b))>0)o.write(b,0,n);return o.toByteArray();}
