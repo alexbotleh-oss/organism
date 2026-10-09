@@ -272,3 +272,14 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Known limits:** title-only search opens page 1 because there is no matching message body; large result sets remain capped at 500; page navigation and SQL runtime behavior still need CI and device verification.
 - **Status:** PARTIAL — source committed, build not yet verified, no device test.
 - **Next action:** verify Actions for exact code SHA `e670155838794084939eba546a225b705cdde541`; if green, inspect artifact availability and test on phone with title-only/body-only/no-match and a body match beyond the first 100 messages. Do not claim device success from CI.
+
+## 2026-10-09 — WL-022 — Restore Android WebView file selection
+
+- **Lifecycle:** STARTED → CHANGED; CI and device verification pending.
+- **User-observed symptom:** in ChatGPT Web inside ORGANISM, tapping the attachment control never opened Android's file picker even after waiting. The user successfully attached the screenshot later from a normal browser, so the in-app WebView file chooser is the scoped issue.
+- **Baseline:** branch `fix/oauth-diagnostic-trace-20261009`, prior head `34c12bb7d8593472a68275e3e3b671a701a4b2dc`; file `app/src/main/java/com/organism/app/PlatformWebActivity.java`.
+- **Change:** commit `0a37c6785645bdb80a2b855a2235526f2116e749` overrides `WebChromeClient.onShowFileChooser()`, launches the chooser intent provided by WebView, returns selected URI(s) using `FileChooserParams.parseResult()`, cancels any previous pending chooser callback, and resolves a pending callback with null if the activity is destroyed. No broad storage permission was added.
+- **Verification:** source change committed through GitHub and requires read-back plus Android CI. No local Gradle build or real-device attachment test has yet been run. This is a targeted implementation, not yet a confirmed fix.
+- **Data safety:** no database, imported archives, chat history, credentials, or app preferences touched. The system picker grants access only to the selected attachment URI.
+- **Status:** PARTIAL — implementation committed; compile/CI and device behavior pending.
+- **Next action:** verify the exact commit's Android Actions run; if green, install that exact APK as an update without clearing app data and test image attachment, document attachment, and picker cancellation in ChatGPT Web.
