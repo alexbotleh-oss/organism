@@ -18,6 +18,22 @@
 Repository: https://github.com/alexbotleh-oss/organism
 Current working branch recorded in the handoff: `fix/zip-import-crash-and-archive-restore`. Verify the actual latest head before editing; do not assume an old SHA is still current.
 
+
+## Continuous progress control (required)
+At the beginning of every work session and before choosing a new task:
+1. Read the current handoff and the latest work-log entries.
+2. Compare **planned → implemented → verified → device-confirmed**. Mark each item separately; do not infer completion from a commit or build.
+3. Choose the single next step from the handoff, check current branch/head and related code/tests, and avoid repeating completed work.
+4. At the end of every meaningful stage, update the work log and handoff with evidence, unresolved items, data risks, and the next step. Re-check the list at the start of the next session.
+
+## Connector preference: platform UI first where feasible
+The user's preference is to use the official ChatGPT (and other supported AI platforms) web interface in an in-app browser/WebView where permitted, rather than defaulting to API calls and token billing.
+- Treat this as a design preference to investigate and validate, not as proof that the platform UI can be automated.
+- First test what the official website supports in a normal authenticated WebView/browser and what its terms/security protections allow. Never bypass login, CAPTCHA, anti-automation controls, usage limits, or extract session cookies/credentials.
+- Keep connector adapters replaceable and the memory core independent. Prefer the platform UI connector when it is supported and reliable; retain API or manual/browser interaction as explicit alternatives when the platform UI cannot provide a safe, permitted, reliable path.
+- Do not silently send a request through the API when the user selected platform mode. Show which connector is active and explain any fallback and its cost/requirements before using it.
+- Do not claim that a platform connector works until the exact flow has been tested. Subscription limits such as `subscription_sharing_usage_limit_exceeded` must be reported honestly, not treated as something to bypass.
+
 ## Product principles that must not drift
 - **One memory, different connectors.** The canonical memory belongs to the user/ORGANISM, not to a model, platform, API key, browser session, or chat.
 - Imported source conversations are not the same thing as extracted memory objects, and neither is the same thing as ORGANISM's own chat sessions. Keep them distinguishable and traceable to their source.
