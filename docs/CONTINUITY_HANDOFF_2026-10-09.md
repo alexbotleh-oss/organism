@@ -102,3 +102,17 @@ This confirms CI build only. No Android device validation has happened yet. Next
 The latest app commit `bd0653fb2195997cfb7df8915d6cac8ebd86fc41` now has both successful CI workflows: Android build `37943950470` and APK build/upload `37943950487`. APK artifact `organism-debug-apk` is 11,345,011 bytes, SHA-256 `77b3ecc9d02a8a6c784b754cde53b0758af0b47a5ce7abb42a2b54ed0ce20f9c`. Artifact ZIP: https://api.github.com/repos/alexbotleh-oss/organism/actions/artifacts/11622002797/zip (may require GitHub authentication). Work-log evidence commit: `5f378d1f5bc34e0ad1dab78fe1d32f93072519ae`.
 
 The build is verified; device behavior is not. Next action is install/test this build on the existing Android app/database without re-importing the ZIP, then record what is observed. No old rows were deleted.
+
+
+## Handoff update — OAuth browser return fix (2026-10-09)
+
+- **User goal:** after completing ChatGPT sign-in in the browser, return automatically to ORGANISM rather than leaving the browser open with a loading indicator.
+- **Source finding:** the loopback callback handler listened on \`127.0.0.1\`, received the OAuth callback, and returned a static HTML page saying “Авторизация завершена. Вернитесь в приложение.” It contained no app-launch action. This is consistent with the manual return the user described, but does not independently explain the browser's persistent spinner.
+- **Changes committed on \`fix/zip-import-crash-and-archive-restore\`:**
+  - \`7996c271ce66027e9f728be54ab1f7970b260595\` — callback page attempts to launch the installed ORGANISM app via an Android intent and provides a visible fallback button.
+  - \`4005260fb17dee451caabd5c372146b03c44af1c\` — MainActivity is marked \`singleTask\` to reuse the existing activity on return.
+  - \`a4ef7e81d1f10bfc7a15d92e2b6808031ab2cbfd\` — append-only work-log record for this stage.
+- **Planned vs implemented vs verified:** browser return attempt implemented; no CI result observed yet; no device test performed. This is not yet a confirmed fix.
+- **Limitations:** Android browser policy may block automatic external-app launch, so the callback page has a manual return link. OAuth token exchange/validation logic was not altered. The reported \`subscription_sharing_usage_limit_exceeded\` remains a separate usage-limit issue and is not bypassed.
+- **Data safety:** no database or saved credentials were reset, deleted, or migrated.
+- **Next action:** check CI for the new branch head; if green, install the exact build on the existing phone and test browser → callback → app, verifying that the OAuth token exchange finishes and no duplicate activity appears. Record the device result separately.
