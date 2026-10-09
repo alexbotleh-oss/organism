@@ -62,6 +62,41 @@ class OrganismCore:
         CREATE TABLE IF NOT EXISTS schema_meta (
             version INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'ACTIVE',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS project_states (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            name TEXT NOT NULL DEFAULT 'Current state',
+            status TEXT NOT NULL DEFAULT 'ACTIVE',
+            snapshot_json TEXT NOT NULL DEFAULT '{}',
+            updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS tasks (
+            id TEXT PRIMARY KEY,
+            project_id TEXT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'OPEN',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS relations (
+            id TEXT PRIMARY KEY,
+            subject_type TEXT NOT NULL,
+            subject_id TEXT NOT NULL,
+            relation TEXT NOT NULL,
+            object_type TEXT NOT NULL,
+            object_id TEXT NOT NULL,
+            provenance_json TEXT NOT NULL DEFAULT '{}',
+            created_at INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS source_documents (
             id TEXT PRIMARY KEY,
             source_name TEXT NOT NULL,
@@ -261,6 +296,124 @@ class OrganismCore:
             self._event(conn, "RAW_IMPORTED", "user", "source_document", source_id,
                         {"sha256": digest, "segments": len(segment_ids), "completeness": completeness})
         return {"source_id": source_id, "sha256": digest, "segment_ids": segment_ids, "segments": len(segment_ids)}
+
+    def import_legacy_snapshot(self, snapshot: dict[str, Any], *,
+                               source_name: str = "organism-pwa-export.json") -> dict[str, Any]:
+        """Migrate the existing PWA JSON export without deleting or silently trusting it.
+
+        The entire JSON snapshot is preserved as RAW. Mappable entities are copied into
+        structured tables; legacy experiences remain unverified candidates. Unmappable
+        objects remain recoverable from the preserved snapshot and are counted in the report.
+        """
+        if not isinstance(snapshot, dict):
+            raise ValueError("Legacy export must be a JSON object")
+        raw = self.import_text(
+            source_name, _json(snapshot), source_kind="legacy_pwa_json",
+            completeness="declared_complete",
+            metadata={"migration": "PWA-v0.1-to-CORE-v0.4"},
+        )
+        now = _now()
+        report = {"source_id": raw["source_id"], "projects": 0, "states": 0, "tasks": 0,
+                  "messages_preserved": 0, "experience_candidates": 0, "relations": 0,
+                  "unmapped_experiences": 0, "legacy_events": 0}
+        with self._connect() as conn:
+            for item in snapshot.get("projects", []) or []:
+                if not isinstance(item, dict) or not item.get("id"):
+                    continue
+                conn.execute(
+                    "INSERT OR IGNORE INTO projects(id,name,description,status,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+                    (str(item["id"]), str(item.get("name") or item["id"]),
+                     str(item.get("description") or ""), str(item.get("status") or "ACTIVE"), now, now),
+                )
+                report["projects"] += 1
+            for item in snapshot.get("projectStates", []) or []:
+                if not isinstance(item, dict) or not item.get("id"):
+                    continue
+                conn.execute(
+                    "INSERT OR IGNORE INTO project_states(id,project_id,name,status,snapshot_json,updated_at) VALUES(?,?,?,?,?,?)",
+                    (str(item["id"]), str(item.get("projectId") or ""),
+                     str(item.get("name") or "Imported state"), str(item.get("status") or "ACTIVE"),
+                     _json(item), now),
+                )
+                report["states"] += 1
+            for item in snapshot.get("tasks", []) or []:
+                if not isinstance(item, dict) or not item.get("id"):
+                    continue
+                conn.execute(
+                    "INSERT OR IGNORE INTO tasks(id,project_id,title,description,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                    (str(item["id"]), item.get("projectId"), str(item.get("title") or item.get("name") or item["id"]),
+                     str(item.get("description") or ""), str(item.get("status") or "OPEN"), now, now),
+                )
+                report["tasks"] += 1
+            for item in snapshot.get("messages", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                body = item.get("content", item.get("text", item.get("message")))
+                if body is None:
+                    continue
+                role = str(item.get("role") or item.get("speaker") or "unknown")
+                self.import_text(
+                    f"{source_name}#message:{item.get('id', report['messages_preserved'])}",
+                    str(body), source_kind="legacy_message", speaker=role,
+                    origin="organism_generated" if role.lower() in {"assistant", "model", "organism"} else "external",
+                    metadata={"legacy_message_id": item.get("id"), "project_id": item.get("projectId")},
+                )
+                report["messages_preserved"] += 1
+            for item in snapshot.get("experiences", []) or []:
+                if not isinstance(item, dict):
+                    report["unmapped_experiences"] += 1
+                    continue
+                action = str(item.get("whatTried") or "").strip()
+                outcome = str(item.get("whatWorked") or item.get("whatFailed") or "").strip()
+                title = str(item.get("title") or item.get("name") or "Imported experience candidate")
+                if not action or not outcome:
+                    report["unmapped_experiences"] += 1
+                    continue
+                exp_raw = self.import_text(
+                    f"{source_name}#experience:{item.get('id', report['experience_candidates'])}",
+                    _json(item), source_kind="legacy_experience", completeness="unknown",
+                    metadata={"legacy_experience_id": item.get("id"), "project_id": item.get("projectId")},
+                )
+                exp_id = _id("exp")
+                conn.execute(
+                    """INSERT OR IGNORE INTO experiences(id,project_id,title,conditions_json,environment_json,
+                       action_taken,observed_outcome,verification_method,verification_status,experience_status,
+                       scope,applies_when,fails_when,source_kind,origin,created_at,updated_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (exp_id, item.get("projectId"), title,
+                     _json({"legacy_context": item.get("whatHappened", "")}),
+                     _json(item.get("environment") or {}),
+                     action, outcome, "legacy record; verification method not independently established",
+                     "unverified", "candidate", "project",
+                     str(item.get("appliesWhen") or ""), str(item.get("doesNotApplyWhen") or ""),
+                     "legacy_import", "legacy_import", now, now),
+                )
+                for segment_id in exp_raw["segment_ids"]:
+                    conn.execute("INSERT OR IGNORE INTO experience_sources(experience_id,raw_segment_id) VALUES(?,?)",
+                                 (exp_id, segment_id))
+                report["experience_candidates"] += 1
+            for item in snapshot.get("relations", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                subject = item.get("subjectId") or item.get("from") or item.get("sourceId")
+                target = item.get("objectId") or item.get("to") or item.get("targetId")
+                relation = item.get("relation") or item.get("type")
+                if not subject or not target or not relation:
+                    continue
+                conn.execute(
+                    "INSERT INTO relations(id,subject_type,subject_id,relation,object_type,object_id,provenance_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                    (_id("rel"), str(item.get("subjectType") or "unknown"), str(subject), str(relation),
+                     str(item.get("objectType") or "unknown"), str(target), _json({"source": "legacy_pwa_json"}), now),
+                )
+                report["relations"] += 1
+            for item in snapshot.get("events", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                self._event(conn, "LEGACY_EVENT_IMPORTED", "migration", "legacy_event",
+                            str(item.get("id") or ""), item)
+                report["legacy_events"] += 1
+            self._event(conn, "LEGACY_SNAPSHOT_MIGRATED", "user", "source_document", raw["source_id"], report)
+        return report
 
     def get_raw_segment(self, segment_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
