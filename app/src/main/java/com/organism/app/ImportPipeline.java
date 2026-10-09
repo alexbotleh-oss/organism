@@ -44,49 +44,228 @@ public class ImportPipeline {
 
     private void ingest(String sourceType,String name,String path,String text)throws Exception{
         if(text==null)text="";String checksum=sha(text);long src=db.source(sourceType,name,path,text,checksum);long project=db.project("ORGANISM");
-        db.event("IMPORT", "Источник принят: "+name,project,0,src,"STATED","VERIFIED");
+        db.event("IMPORT", "Источник принят: "+name,project,0,src,"STATED","NOT_VERIFIED");
         String normalized=text.replace("\r","").trim();
-        if(normalized.isEmpty()){db.event("ERROR","Источник пустой: "+name,project,0,src,"STATED","VERIFIED");return;}
+        if(normalized.isEmpty()){db.event("ERROR","Источник пустой: "+name,project,0,src,"UNKNOWN","NOT_VERIFIED");return;}
         String title=title(name,normalized);
-        long mem=db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
-        extractStructure(normalized,project,src,mem,title);
         writeRaw(name,normalized);
+        // A role-labelled exported transcript must not become one giant NOTE.
+        // Preserve the original source, then create individually retrievable message records.
+        int importedMessages=ingestRoleTranscript(name,normalized,project,src);
+        if(importedMessages==0){
+            // Arbitrary text stays a source-backed note; no keyword-based semantic guessing.
+            db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
+        }else{
+            db.event("CHAT_IMPORTED","Диалоговый текст разобран на сообщения: "+name+"; messages="+importedMessages,project,0,src,"STATED","VERIFIED");
+            db.memory("CONTEXT_INDEX",title,"CHAT TRANSCRIPT INDEX v1\\nsource_id: "+src+"\\nmessage_count: "+importedMessages+"\\nraw_source_preserved: true\\nsemantic_extraction: pending\\n",project,0,src,"STATED","NOT_VERIFIED",0.5);
+        }
         appendEvent("IMPORT",name,src);
         writeSnapshot(project);
     }
 
-    private void extractStructure(String text,long project,long src,long mem,String title){
-        String[] lines=text.split("\n");StringBuilder ingredients=new StringBuilder(),steps=new StringBuilder(),tips=new StringBuilder(),bju=new StringBuilder();
-        boolean ing=false,step=false,tip=false;
-        for(String raw:lines){
-            String x=raw.trim();if(x.isEmpty())continue;String lo=x.toLowerCase(Locale.ROOT);
-            if(lo.matches(".*(ингредиент|ingredients|состав).*")){ing=true;step=false;tip=false;continue;}
-            if(lo.matches(".*(приготов|порядок|инструкц|шаг|steps|directions).*")){step=true;ing=false;tip=false;continue;}
-            if(lo.matches(".*(совет|tips|примечан|подсказ).*")){tip=true;ing=false;step=false;continue;}
-            if(lo.matches(".*(бжу|кбжу|белк|жир|углевод|калори|kcal|protein|fat|carb).*"))bju.append(x).append("\n");
-            else if(ing)ingredients.append(x).append("\n");else if(step)steps.append(x).append("\n");else if(tip)tips.append(x).append("\n");
+    private int ingestRoleTranscript(String name,String text,long project,long source)throws Exception{
+        String[] lines=text.split("\n",-1);
+        int userMarkers=0,assistantMarkers=0;
+        for(String line:lines){String role=line.trim().toLowerCase(Locale.ROOT);if("user".equals(role))userMarkers++;else if("chatgpt".equals(role)||"assistant".equals(role))assistantMarkers++;}
+        // Conservative detection: require a repeated role-labelled structure, not one incidental word.
+        if(userMarkers<3||assistantMarkers<3||Math.min(userMarkers,assistantMarkers)<Math.max(3,Math.max(userMarkers,assistantMarkers)/8))return 0;
+        String conversationTitle=title(name,text);
+        StringBuilder body=new StringBuilder();String role=null;int imported=0;int startLine=1;
+        for(int i=0;i<lines.length;i++){
+            String line=lines[i].trim();String lower=line.toLowerCase(Locale.ROOT);
+            String nextRole="user".equals(lower)?"USER":("chatgpt".equals(lower)||"assistant".equals(lower))?"ASSISTANT":null;
+            if(nextRole!=null){
+                if(role!=null&&body.toString().trim().length()>0){
+                    String content=body.toString().trim();
+                    String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+i+"]\nrole: "+role+"\n"+content;
+                    db.memory("CHAT_MESSAGE",conversationTitle+" ["+role+" #"+(imported+1)+"]",msg,project,0,source,"STATED","NOT_VERIFIED",0.5);
+                    db.event("CHAT_MESSAGE_IMPORTED","source="+name+"; role="+role+"; sequence="+(imported+1)+"; line_start="+startLine+"; line_end="+i,project,0,source,"STATED","NOT_VERIFIED");
+                    imported++;
+                }
+                role=nextRole;body.setLength(0);startLine=i+2;
+            }else if(role!=null){if(body.length()>0)body.append("\n");body.append(lines[i]);}
         }
-        if(ingredients.length()>0){long m=db.memory("FACT","Ингредиенты: "+title,ingredients.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","ingredients",src);}
-        if(steps.length()>0){long m=db.memory("FACT","Приготовление: "+title,steps.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","preparation",src);}
-        if(tips.length()>0){long m=db.memory("NOTE","Советы: "+title,tips.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","tips",src);}
-        if(bju.length()>0){long m=db.memory("FACT","БЖУ/КБЖУ: "+title,bju.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","nutrition",src);}
+        if(role!=null&&body.toString().trim().length()>0){
+            String content=body.toString().trim();
+            String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+lines.length+"]\nrole: "+role+"\n"+content;
+            db.memory("CHAT_MESSAGE",conversationTitle+" ["+role+" #"+(imported+1)+"]",msg,project,0,source,"STATED","NOT_VERIFIED",0.5);
+            db.event("CHAT_MESSAGE_IMPORTED","source="+name+"; role="+role+"; sequence="+(imported+1)+"; line_start="+startLine+"; line_end="+lines.length,project,0,source,"STATED","NOT_VERIFIED");
+            imported++;
+        }
+        return imported;
     }
-
-    private void tag(long mem,String dim,String value,long src){android.content.ContentValues v=new android.content.ContentValues();v.put("memory_id",mem);v.put("dimension",dim);v.put("value",value);v.put("normalized_value",value.toLowerCase(Locale.ROOT));v.put("confidence",0.5);v.put("source_id",src);v.put("created_at",db.now());db.getWritableDatabase().insert("memory_tags",null,v);}
 
     private void importZip(String name,byte[] bytes)throws Exception{
         ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(bytes));ZipEntry e;int n=0;long project=db.project("ORGANISM");
-        while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=new String(b,StandardCharsets.UTF_8);
-            if(p.endsWith("conversations.json")||p.endsWith("chat.json"))parseChatJson(e.getName(),text);else if(text.length()>0)ingest("CHAT_EXPORT",e.getName(),e.getName(),text);n++;}
-        z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","VERIFIED");writeSnapshot(project);
+        while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=decodeText(b);
+            if(p.endsWith("conversations.json")||p.endsWith("chat.json")){long rawSource=db.source("CHAT_EXPORT_RAW",e.getName(),e.getName(),text,sha(text));parseChatJson(e.getName(),text,rawSource);}else if(text.length()>0)ingest("CHAT_EXPORT",e.getName(),e.getName(),text);n++;}
+        z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","NOT_VERIFIED");writeSnapshot(project);
     }
 
-    private void parseChatJson(String name,String json)throws Exception{
-        JSONArray arr=new JSONArray(json);long project=db.project("ORGANISM");
-        for(int i=0;i<arr.length();i++){JSONObject c=arr.getJSONObject(i);String title=c.optString("title","ChatGPT conversation");String raw=c.toString();long src=db.source("CHAT_EXPORT",title,name,raw,sha(raw));StringBuilder transcript=new StringBuilder();JSONObject map=c.optJSONObject("mapping");
-            if(map!=null){Iterator<String> keys=map.keys();while(keys.hasNext()){JSONObject node=map.optJSONObject(keys.next());if(node==null)continue;JSONObject msg=node.optJSONObject("message");if(msg==null)continue;JSONObject author=msg.optJSONObject("author");String role=author==null?"unknown":author.optString("role","unknown");JSONObject content=msg.optJSONObject("content");if(content==null)continue;JSONArray parts=content.optJSONArray("parts");if(parts!=null)for(int j=0;j<parts.length();j++)if(parts.optString(j,null)!=null)transcript.append(role).append(": ").append(parts.optString(j)).append("\n");}}
-            if(transcript.length()>0){db.event("USER_MESSAGE","Импортирован чат: "+title,project,0,src,"STATED","VERIFIED");db.memory("CONTEXT",title,transcript.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);}
+    private void parseChatJson(String name,String json,long rawSourceId)throws Exception{
+        JSONArray conversations=new JSONArray(json);
+        long project=db.project("ORGANISM");
+        for(int i=0;i<conversations.length();i++){
+            JSONObject conversation=conversations.getJSONObject(i);
+            String title=conversation.optString("title","ChatGPT conversation");
+            String raw=conversation.toString();
+            String conversationId=conversation.optString("conversation_id","");
+            long source=db.source("CHAT_EXPORT_CONVERSATION",title,name,null,sha(raw),rawSourceId,conversationId);
+            JSONObject mapping=conversation.optJSONObject("mapping");
+            if(mapping==null||mapping.length()==0){
+                db.event("CHAT_IMPORT_INCOMPLETE","Чат без mapping: "+title,project,0,source,"STATED","NOT_VERIFIED");
+                continue;
+            }
+
+            // Build an explicit node index first. JSON object key iteration order is not chronology.
+            LinkedHashMap<String,JSONObject> nodes=new LinkedHashMap<>();
+            Iterator<String> keys=mapping.keys();
+            while(keys.hasNext()){
+                String nodeId=keys.next();
+                JSONObject node=mapping.optJSONObject(nodeId);
+                if(node!=null)nodes.put(nodeId,node);
+            }
+
+            ArrayList<String> ordered=orderChatNodes(nodes);
+            String currentNode=conversation.optString("current_node","");
+            String header="CHAT EXPORT INDEX v1\n"
+                    +"conversation_id: "+conversation.optString("conversation_id","UNKNOWN")+"\n"
+                    +"title: "+title+"\n"
+                    +"current_node: "+(currentNode.isEmpty()?"UNKNOWN":currentNode)+"\n"
+                    +"node_count: "+nodes.size()+"\n"
+                    +"ordering: parent/children traversal; disconnected nodes sorted by message time and node id\n"
+                    +"provenance_source_id: "+source+"\n"
+                    +"message_nodes: stored as individually searchable memory objects\n";
+
+            int messageCount=0;
+            for(String nodeId:ordered){
+                JSONObject node=nodes.get(nodeId);
+                if(node==null)continue;
+                String parent=jsonScalar(node.opt("parent"));
+                JSONArray children=node.optJSONArray("children");
+                String childIds=children==null?"[]":children.toString();
+                JSONObject message=node.optJSONObject("message");
+                if(message==null){
+                    db.event("CHAT_NODE_IMPORTED","conversation="+title+"; node="+nodeId+
+                            "; parent="+parent+"; children="+childIds+"; message=none",
+                            project,0,source,"STATED","NOT_VERIFIED");
+                    continue;
+                }
+
+                JSONObject author=message.optJSONObject("author");
+                String role=author==null?"unknown":author.optString("role","unknown");
+                String authorName=author==null?"":author.optString("name","");
+                String timestamp=jsonScalar(message.opt("create_time"));
+                String messageId=message.optString("id",nodeId);
+                String channel=message.optString("channel","");
+                JSONObject content=message.optJSONObject("content");
+                String body=chatMessageText(content);
+
+                String nodeText="[CHAT_MESSAGE conversation_id="+conversationId+" source_id="+source+
+                        " node_id="+nodeId+" parent="+parent+" children="+childIds+
+                        " current="+nodeId.equals(currentNode)+"]\n"
+                        +"message_id: "+messageId+" | role: "+role
+                        +(authorName.isEmpty()?"":" | author: "+authorName)
+                        +" | time: "+timestamp
+                        +(channel.isEmpty()?"":" | channel: "+channel)+"\n"
+                        +role+": "+body;
+
+                // One searchable memory object per message keeps later turns retrievable
+                // instead of truncating an entire long conversation to its first characters.
+                db.memory("CHAT_MESSAGE",title+" [conversation "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+" node "+nodeId+"]",nodeText,
+                        project,0,source,"STATED","NOT_VERIFIED",0.5);
+                // Store structural provenance separately from semantic interpretation.
+                db.event("CHAT_MESSAGE_IMPORTED","conversation="+title+"; node="+nodeId+
+                        "; message="+messageId+"; parent="+parent+"; children="+childIds+
+                        "; role="+role+"; time="+timestamp+"; channel="+channel,
+                        project,0,source,"STATED","NOT_VERIFIED");
+                messageCount++;
+            }
+
+            if(nodes.size()>0){
+                db.event("CHAT_IMPORTED","Чат импортирован: "+title+
+                        "; nodes="+nodes.size()+"; messages="+messageCount,
+                        project,0,source,"STATED","VERIFIED");
+                db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\n",
+                        project,0,source,"STATED","NOT_VERIFIED",0.5);
+            }else{
+                db.event("CHAT_IMPORT_INCOMPLETE","В чате не найдено ни одного узла: "+title,
+                        project,0,source,"STATED","NOT_VERIFIED");
+            }
         }
+    }
+
+    private ArrayList<String> orderChatNodes(LinkedHashMap<String,JSONObject> nodes){
+        ArrayList<String> ordered=new ArrayList<>();
+        HashSet<String> visited=new HashSet<>();
+        ArrayList<String> roots=new ArrayList<>();
+        for(Map.Entry<String,JSONObject> entry:nodes.entrySet()){
+            String parent=jsonScalar(entry.getValue().opt("parent"));
+            if(parent.isEmpty()||!nodes.containsKey(parent))roots.add(entry.getKey());
+        }
+        Comparator<String> byTimeThenId=(a,b)->{
+            double ta=chatNodeTime(nodes.get(a)),tb=chatNodeTime(nodes.get(b));
+            int time=Double.compare(ta,tb);
+            return time!=0?time:a.compareTo(b);
+        };
+        Collections.sort(roots,byTimeThenId);
+        for(String root:roots)appendChatSubtree(root,nodes,visited,ordered);
+
+        // Include orphaned/cyclic nodes deterministically rather than silently dropping them.
+        ArrayList<String> leftovers=new ArrayList<>();
+        for(String id:nodes.keySet())if(!visited.contains(id))leftovers.add(id);
+        Collections.sort(leftovers,byTimeThenId);
+        for(String id:leftovers)appendChatSubtree(id,nodes,visited,ordered);
+        return ordered;
+    }
+
+    private void appendChatSubtree(String first,LinkedHashMap<String,JSONObject> nodes,
+                                   Set<String> visited,List<String> ordered){
+        ArrayDeque<String> stack=new ArrayDeque<>();
+        stack.push(first);
+        while(!stack.isEmpty()){
+            String id=stack.pop();
+            if(!visited.add(id))continue;
+            ordered.add(id);
+            JSONObject node=nodes.get(id);
+            JSONArray children=node==null?null:node.optJSONArray("children");
+            if(children==null)continue;
+            // Reverse-push so traversal respects the source's declared child order.
+            for(int i=children.length()-1;i>=0;i--){
+                String child=children.optString(i,"");
+                if(!child.isEmpty()&&nodes.containsKey(child)&&!visited.contains(child))stack.push(child);
+            }
+        }
+    }
+
+    private double chatNodeTime(JSONObject node){
+        if(node==null)return Double.MAX_VALUE;
+        JSONObject message=node.optJSONObject("message");
+        if(message==null)return Double.MAX_VALUE;
+        Object time=message.opt("create_time");
+        if(time instanceof Number)return ((Number)time).doubleValue();
+        try{return Double.parseDouble(String.valueOf(time));}
+        catch(Exception ignored){return Double.MAX_VALUE;}
+    }
+
+    private String jsonScalar(Object value){
+        if(value==null||value==JSONObject.NULL)return "";
+        return value instanceof String?(String)value:String.valueOf(value);
+    }
+
+    private String chatMessageText(JSONObject content){
+        if(content==null)return "[NO CONTENT OBJECT]";
+        JSONArray parts=content.optJSONArray("parts");
+        if(parts==null)return content.toString();
+        StringBuilder body=new StringBuilder();
+        for(int i=0;i<parts.length();i++){
+            if(i>0)body.append("\n");
+            Object part=parts.opt(i);
+            if(part instanceof String)body.append((String)part);
+            else if(part==null||part==JSONObject.NULL)body.append("[NULL PART]");
+            else body.append(String.valueOf(part));
+        }
+        return body.toString();
     }
 
     private byte[] readZipEntry(ZipInputStream z)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=z.read(b))>0)o.write(b,0,n);return o.toByteArray();}

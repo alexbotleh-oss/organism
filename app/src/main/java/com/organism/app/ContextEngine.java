@@ -18,7 +18,9 @@ public final class ContextEngine {
     private final Db db;
     public ContextEngine(Db db){this.db=db;}
 
-    public String build(String query){
+    public String build(String query){return build(query,0);}
+
+    public String build(String query,long sessionId){
         String q=norm(query);
         long project=db.project("ORGANISM");
         String state=db.queryOne("SELECT summary FROM project_states WHERE project_id=? AND is_current=1 ORDER BY id DESC LIMIT 1",new String[]{""+project});
@@ -32,6 +34,16 @@ public final class ContextEngine {
         Cursor t=db.query("SELECT logical_id,title,status,description,priority FROM tasks WHERE project_id=? AND status IN ('OPEN','IN_PROGRESS','WAITING') ORDER BY priority DESC,updated_at DESC LIMIT 12",new String[]{""+project});
         int taskN=0; while(t.moveToNext()){out.append("- ").append(t.getString(0)).append(" | ").append(t.getString(1)).append(" | ").append(t.getString(2)).append(" | ").append(nvl(t.getString(3),"")).append("\n");taskN++;} t.close();
         if(taskN==0) out.append("- none\n");
+
+        // Preserve immediate conversational continuity. User messages are direct reports;
+        // model outputs remain explicitly unverified and are never treated as experience.
+        out.append("\nRECENT SESSION DIALOGUE (chronological; last 12 messages):\n");
+        ArrayList<String[]> history=new ArrayList<>();
+        Cursor h=sessionId>0?db.query("SELECT kind,description,occurred_at FROM events WHERE project_id=? AND session_id=? AND kind IN ('USER_MESSAGE','MODEL_OUTPUT','ERROR') ORDER BY id DESC LIMIT 12",new String[]{""+project,""+sessionId}):db.query("SELECT kind,description,occurred_at FROM events WHERE 1=0",null);
+        while(h.moveToNext())history.add(new String[]{h.getString(0),h.getString(1),h.getString(2)});
+        h.close();
+        Collections.reverse(history);
+        for(String[] e:history){String label="USER_MESSAGE".equals(e[0])?"USER_STATED": "MODEL_OUTPUT".equals(e[0])?"MODEL_OUTPUT_NOT_VERIFIED":"ERROR_EVENT";out.append("- [").append(label).append(" | ").append(e[2]).append("] ").append(e[1]).append("\n");}
 
         List<Candidate> memories=memoryCandidates(q,project);
         out.append("\nRANKED MEMORY:\n");
@@ -55,7 +67,7 @@ public final class ContextEngine {
         Cursor c=db.query("SELECT m.logical_id,m.title,m.content,m.claim_status,m.verification_status,m.confidence,m.priority,m.project_id,m.task_id,m.source_id,\n"+
                 "CASE WHEN m.project_id=? THEN 1 ELSE 0 END project_match,\n"+
                 "CASE WHEN m.memory_status='ACTIVE' THEN 1 ELSE 0 END active\n"+
-                "FROM memory_objects m WHERE m.memory_status='ACTIVE' AND m.availability_level!='DELETED' ORDER BY m.priority DESC,m.updated_at DESC LIMIT 160",new String[]{""+project});
+                "FROM memory_objects m WHERE m.memory_status='ACTIVE' AND m.availability_level!='DELETED' AND (m.project_id=? OR m.project_id IS NULL) ORDER BY m.priority DESC,m.updated_at DESC LIMIT 160",new String[]{""+project,""+project});
         while(c.moveToNext()){
             String text=(nvl(c.getString(1),"")+" "+nvl(c.getString(2),"")).toLowerCase(Locale.ROOT);
             double lexical=overlap(q,text);
@@ -63,21 +75,60 @@ public final class ContextEngine {
             if(c.getString(4)!=null && ("NOT_VERIFIED".equals(c.getString(4))||"UNKNOWN".equals(c.getString(4))||"HYPOTHESIS".equals(c.getString(3)))) score*=.75;
             if(score>=.18)a.add(new Candidate(c.getString(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getDouble(5),score));
         } c.close();
-        addFtsCandidates(a,q);
+        addFtsCandidates(a,q,project);
         sort(a); return trimUnique(a,14);
     }
 
-    private void addFtsCandidates(List<Candidate> a,String q){
+    private void addFtsCandidates(List<Candidate> a,String q,long project){
         if(q.isEmpty())return;
+        Cursor c=null;
         try{
-            String[] terms=q.split("[^\\p{L}\\p{N}]+"); StringBuilder sql=new StringBuilder("SELECT m.logical_id,m.title,m.content,m.claim_status,m.verification_status,m.confidence FROM memory_search s JOIN memory_objects m ON m.id=s.memory_id WHERE m.memory_status='ACTIVE' AND ("); ArrayList<String> args=new ArrayList<>(); int added=0; for(String term:terms){if(term.length()<2)continue; if(added++>0)sql.append(" OR "); sql.append("(s.title LIKE ? OR s.content LIKE ?)"); args.add("%"+term+"%");args.add("%"+term+"%");} sql.append(") LIMIT 20"); Cursor c=db.query(sql.toString(),args.toArray(new String[0]));
-            while(c.moveToNext()){double s=.72+.12*c.getDouble(5);a.add(new Candidate(c.getString(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getDouble(5),s));} c.close();
-        }catch(Exception ignored){}
+            LinkedHashSet<String> uniqueTerms=new LinkedHashSet<>();
+            for(String term:q.split("[^\\p{L}\\p{N}]+")){
+                String t=term.toLowerCase(Locale.ROOT);
+                if(t.length()>=2)uniqueTerms.add(t);
+            }
+            if(uniqueTerms.isEmpty())return;
+            ArrayList<String> terms=new ArrayList<>(uniqueTerms);
+            StringBuilder sql=new StringBuilder("SELECT m.logical_id,m.title,m.content,m.claim_status,m.verification_status,m.confidence,m.project_id FROM memory_search s JOIN memory_objects m ON m.id=s.memory_id WHERE m.memory_status='ACTIVE' AND m.availability_level!='DELETED' AND (m.project_id=? OR m.project_id IS NULL) AND (");
+            ArrayList<String> args=new ArrayList<>();
+            args.add(""+project);
+            int added=0;
+            for(String term:terms){
+                if(added++>0)sql.append(" OR ");
+                sql.append("(s.title LIKE ? OR s.content LIKE ?)");
+                args.add("%"+term+"%");
+                args.add("%"+term+"%");
+            }
+            if(added==0)return;
+            sql.append(") ORDER BY (");
+            for(int i=0;i<terms.size();i++){
+                if(i>0)sql.append("+");
+                sql.append("(CASE WHEN s.title LIKE ? OR s.content LIKE ? THEN 1 ELSE 0 END)");
+                args.add("%"+terms.get(i)+"%");
+                args.add("%"+terms.get(i)+"%");
+            }
+            sql.append(") DESC,m.priority DESC,m.updated_at DESC LIMIT 120");
+            c=db.query(sql.toString(),args.toArray(new String[0]));
+            while(c.moveToNext()){
+                String text=(nvl(c.getString(1),"")+" "+nvl(c.getString(2),"")).toLowerCase(Locale.ROOT);
+                double lexical=overlap(q,text);
+                double projectMatch=c.isNull(6)?0.35:1.0;
+                double score=.48*lexical+.16*c.getDouble(5)+.12*projectMatch;
+                String claim=c.getString(3),verification=c.getString(4);
+                if("NOT_VERIFIED".equals(verification)||"UNKNOWN".equals(verification)||"HYPOTHESIS".equals(claim))score*=.75;
+                if(score>=.18)a.add(new Candidate(c.getString(0),c.getString(1),c.getString(2),claim,verification,c.getDouble(5),score));
+            }
+        }catch(Exception ignored){
+            // FTS is an optional ranking aid; primary memory selection remains available.
+        }finally{
+            if(c!=null)c.close();
+        }
     }
 
     private List<Candidate> experienceCandidates(String q,long project){
         ArrayList<Candidate> a=new ArrayList<>();
-        Cursor c=db.query("SELECT logical_id,what_happened,what_was_tried,what_worked,what_failed,confidence,experience_type,applicability_json,project_id,task_id FROM experiences WHERE project_id=? OR project_id IS NULL ORDER BY updated_at DESC LIMIT 120",new String[]{""+project});
+        Cursor c=db.query("SELECT logical_id,what_happened,what_was_tried,what_worked,what_failed,confidence,experience_type,applicability_json,project_id,task_id FROM experiences WHERE (project_id=? OR project_id IS NULL) AND experience_type IN ('POSITIVE','NEGATIVE') ORDER BY updated_at DESC LIMIT 120",new String[]{""+project});
         while(c.moveToNext()){
             String blob=nvl(c.getString(1),"")+" "+nvl(c.getString(2),"")+" "+nvl(c.getString(3),"")+" "+nvl(c.getString(4),"");
             double lexical=overlap(q,blob.toLowerCase(Locale.ROOT));
@@ -125,7 +176,7 @@ public final class ContextEngine {
         if(n==0)out.append("- no direct contradiction detected by lightweight check\n");
     }
 
-    private String format(Candidate c){return "- "+c.id+" score="+round(c.score)+" conf="+round(c.confidence)+" ["+nvl(c.status,"")+"/"+nvl(c.verification,"")+"] "+nvl(c.title,"")+": "+shorten(nvl(c.content,""),900);}
+    private String format(Candidate c){return "- "+c.id+" score="+round(c.score)+" conf="+round(c.confidence)+" ["+nvl(c.status,"")+"/"+nvl(c.verification,"")+"] "+nvl(c.title,"")+": "+shorten(nvl(c.content,""),1400);}
 
     private static void sort(List<Candidate>a){Collections.sort(a,(x,y)->Double.compare(y.score,x.score));}
     private static List<Candidate> trimUnique(List<Candidate>a,int n){LinkedHashMap<String,Candidate>m=new LinkedHashMap<>();for(Candidate c:a){if(!m.containsKey(c.id)||m.get(c.id).score<c.score)m.put(c.id,c);if(m.size()>=n)break;}return new ArrayList<>(m.values());}
