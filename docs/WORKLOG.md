@@ -97,3 +97,17 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Boundary:** CI confirms build and artifact upload only. No on-device validation or database inspection was performed.
 - **Data safety:** no user data changed; empty source rows are hidden from archive results, not deleted.
 - **Next:** test this APK on the existing phone and database; validate search by title and message text, open/copy transcript, and verify imported conversation/message counts without re-importing the ZIP.
+
+
+## 2026-10-09 — WL-009 — OAuth browser return to ORGANISM
+
+- **Lifecycle:** STARTED → CHANGED; CI/device verification pending.
+- **Goal:** address the user's report that OAuth completes in the browser but the browser remains open/loading and the user must manually switch back to ORGANISM.
+- **Starting point:** branch \`fix/zip-import-crash-and-archive-restore\`; preceding application changes were committed as \`7996c271ce66027e9f728be54ab1f7970b260595\` (callback response) and \`4005260fb17dee451caabd5c372146b03c44af1c\` (activity reuse).
+- **Evidence from source:** the loopback callback handler returned a static page instructing the user to return to the app, but did not attempt to launch it. This matches the reported manual-switch step; it does not by itself prove why the browser's loading indicator remained visible.
+- **Changes:** callback page now attempts an Android package-targeted launcher intent after showing a clear completion message, and provides a visible fallback button if automatic launch is blocked by the browser. MainActivity uses \`singleTask\` so the existing activity/task is reused rather than needlessly creating a second screen.
+- **Verification:** GitHub Contents API writes succeeded for \`MainActivity.java\` (commit \`7996c271ce66027e9f728be54ab1f7970b260595\`) and \`AndroidManifest.xml\` (commit \`4005260fb17dee451caabd5c372146b03c44af1c\`). No Android build result has been observed for this change yet. No device test has been performed.
+- **Known limitation/risk:** Android browsers may block automatic external-app launch; the page therefore includes a manual return link. The OAuth callback/token-exchange flow itself has not been changed. Browser spinner behavior and end-to-end OAuth success still require testing on the user's phone.
+- **Data safety:** no app database, stored credentials, or user data was reset or migrated.
+- **Status:** PARTIAL — implementation committed; CI and device behavior unverified.
+- **Next:** confirm the exact branch head and CI result, inspect build logs/artifact, then test sign-in from browser through return to ORGANISM on device. Confirm successful token exchange and that no duplicate MainActivity screen appears.
