@@ -10,6 +10,7 @@ import json
 import sqlite3
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -41,12 +42,20 @@ class OrganismCore:
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self):
         conn = sqlite3.connect(self.db_path, timeout=5.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA busy_timeout=5000")
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _initialize(self) -> None:
         schema = """
@@ -57,6 +66,7 @@ class OrganismCore:
             id TEXT PRIMARY KEY,
             source_name TEXT NOT NULL,
             source_kind TEXT NOT NULL,
+            raw_text TEXT,
             sha256 TEXT NOT NULL,
             imported_at INTEGER NOT NULL,
             completeness TEXT NOT NULL DEFAULT 'unknown',
@@ -203,6 +213,10 @@ class OrganismCore:
         """
         with self._connect() as conn:
             conn.executescript(schema)
+            # Forward-compatible additive migration for databases created by an earlier CORE build.
+            source_columns = {r["name"] for r in conn.execute("PRAGMA table_info(source_documents)")}
+            if "raw_text" not in source_columns:
+                conn.execute("ALTER TABLE source_documents ADD COLUMN raw_text TEXT")
             row = conn.execute("SELECT version FROM schema_meta LIMIT 1").fetchone()
             if row is None:
                 conn.execute("INSERT INTO schema_meta(version) VALUES (?)", (SCHEMA_VERSION,))
@@ -232,8 +246,8 @@ class OrganismCore:
         lines = text.splitlines()
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO source_documents(id,source_name,source_kind,sha256,imported_at,completeness,metadata_json) VALUES(?,?,?,?,?,?,?)",
-                (source_id, source_name, source_kind, digest, _now(), completeness, _json(metadata or {})),
+                "INSERT INTO source_documents(id,source_name,source_kind,raw_text,sha256,imported_at,completeness,metadata_json) VALUES(?,?,?,?,?,?,?,?)",
+                (source_id, source_name, source_kind, text, digest, _now(), completeness, _json(metadata or {})),
             )
             segment_ids = []
             for ordinal, line in enumerate(lines, start=1):
@@ -511,7 +525,19 @@ class OrganismCore:
             # Scrub the requested content; dependent rows remain and are flagged for review.
             conn.execute(f"UPDATE {table} SET {field}=? WHERE id=?", ("[REDACTED BY USER REQUEST]", object_id))
             if object_type == "raw_segment":
+                raw_row = conn.execute("SELECT source_id,ordinal FROM raw_segments WHERE id=?", (object_id,)).fetchone()
                 conn.execute("UPDATE raw_segments SET redacted_at=? WHERE id=?", (_now(), object_id))
+                # The exact imported source is retained unless the user explicitly requests redaction;
+                # this authorized operation scrubs the corresponding line in the source payload too.
+                source_row = conn.execute("SELECT raw_text FROM source_documents WHERE id=?", (raw_row["source_id"],)).fetchone()
+                if source_row and source_row["raw_text"] is not None:
+                    original_lines = source_row["raw_text"].splitlines(keepends=True)
+                    line_index = int(raw_row["ordinal"]) - 1
+                    if 0 <= line_index < len(original_lines):
+                        ending = "\\n" if original_lines[line_index].endswith("\\n") else ""
+                        original_lines[line_index] = "[REDACTED BY USER REQUEST]" + ending
+                        conn.execute("UPDATE source_documents SET raw_text=? WHERE id=?",
+                                     ("".join(original_lines), raw_row["source_id"]))
                 conn.execute("""UPDATE claims SET verification_status='needs_review',claim_status='quarantined',updated_at=?
                                 WHERE id IN (SELECT claim_id FROM claim_sources WHERE raw_segment_id=?)""", (_now(), object_id))
                 conn.execute("""UPDATE experiences SET verification_status='needs_review',experience_status='quarantined',updated_at=?
