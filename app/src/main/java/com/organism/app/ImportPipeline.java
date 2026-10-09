@@ -44,9 +44,9 @@ public class ImportPipeline {
 
     private void ingest(String sourceType,String name,String path,String text)throws Exception{
         if(text==null)text="";String checksum=sha(text);long src=db.source(sourceType,name,path,text,checksum);long project=db.project("ORGANISM");
-        db.event("IMPORT", "Источник принят: "+name,project,0,src,"STATED","VERIFIED");
+        db.event("IMPORT", "Источник принят: "+name,project,0,src,"STATED","NOT_VERIFIED");
         String normalized=text.replace("\r","").trim();
-        if(normalized.isEmpty()){db.event("ERROR","Источник пустой: "+name,project,0,src,"STATED","VERIFIED");return;}
+        if(normalized.isEmpty()){db.event("ERROR","Источник пустой: "+name,project,0,src,"UNKNOWN","NOT_VERIFIED");return;}
         String title=title(name,normalized);
         long mem=db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
         // Do not apply recipe-keyword heuristics to arbitrary imports or chat history.
@@ -60,7 +60,7 @@ public class ImportPipeline {
         ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(bytes));ZipEntry e;int n=0;long project=db.project("ORGANISM");
         while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=decodeText(b);
             if(p.endsWith("conversations.json")||p.endsWith("chat.json")){long rawSource=db.source("CHAT_EXPORT_RAW",e.getName(),e.getName(),text,sha(text));parseChatJson(e.getName(),text,rawSource);}else if(text.length()>0)ingest("CHAT_EXPORT",e.getName(),e.getName(),text);n++;}
-        z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","VERIFIED");writeSnapshot(project);
+        z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","NOT_VERIFIED");writeSnapshot(project);
     }
 
     private void parseChatJson(String name,String json,long rawSourceId)throws Exception{
