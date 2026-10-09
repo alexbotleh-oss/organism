@@ -442,26 +442,20 @@ class OrganismCore:
                 "task": task,
                 "environment": env,
                 "directives": directives,
-                "verified_claims": claims,
-                "validated_experiences": experiences,
+                "verified_claims": [],
+                "validated_experiences": [],
                 "open_conflicts": open_conflicts,
                 "safety_note": "Verified claims and experiences only. Model consensus and ORGANISM-generated text are not ground truth.",
+                "budget_exceeded": False,
             }
-            # Keep directives and task; add knowledge items only while within budget.
-            minimal = dict(payload, verified_claims=[], validated_experiences=[])
-            packed = _json(minimal)
+            # Preserve mandatory task/directive/conflict context, then pack evidence one item at a time.
             for key, items in (("verified_claims", claims), ("validated_experiences", experiences)):
                 for item in items:
-                    candidate = dict(payload)
-                    candidate["verified_claims"] = payload["verified_claims"]
-                    candidate["validated_experiences"] = payload["validated_experiences"]
-                    candidate[key] = candidate[key] + [item]
-                    serialized = _json(candidate)
-                    if len(serialized) <= max_chars:
-                        payload[key].append(item)
-                        packed = serialized
+                    payload[key].append(item)
+                    if len(_json(payload)) > max_chars:
+                        payload[key].pop()
             packed = _json(payload)
-            # Hard budget: if fixed fields alone exceed it, still save a truthful snapshot and flag it.
+            # Mandatory fields may themselves exceed the budget; report rather than silently dropping them.
             payload["budget_exceeded"] = len(packed) > max_chars
             packed = _json(payload)
             application_id = _id("app")
