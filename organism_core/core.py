@@ -276,6 +276,10 @@ class OrganismCore:
                   actor: str = "organism") -> str:
         if not claim_text.strip():
             raise ValueError("claim_text must not be empty")
+        if verification_status == "verified":
+            raise ValueError("Use verify() to promote a claim; status cannot be assigned during extraction")
+        if verification_status == "verified":
+            raise ValueError("Use verify() to promote an experience; status cannot be assigned during extraction")
         if origin == "organism_generated" and verification_status == "verified":
             raise ValueError("ORGANISM-generated content cannot self-verify")
         claim_id = _id("clm")
