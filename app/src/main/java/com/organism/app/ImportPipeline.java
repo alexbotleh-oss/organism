@@ -123,11 +123,11 @@ public class ImportPipeline {
                 String body=chatMessageText(content);
 
                 String nodeText="[NODE id="+nodeId+" parent="+parent+" children="+childIds+
-                        " current="+nodeId.equals(currentNode)+"]\\n"
+                        " current="+nodeId.equals(currentNode)+"]\n"
                         +"message_id: "+messageId+" | role: "+role
                         +(authorName.isEmpty()?"":" | author: "+authorName)
                         +" | time: "+timestamp
-                        +(channel.isEmpty()?"":" | channel: "+channel)+"\\n"
+                        +(channel.isEmpty()?"":" | channel: "+channel)+"\n"
                         +role+": "+body;
 
                 // One searchable memory object per message keeps later turns retrievable
@@ -146,7 +146,7 @@ public class ImportPipeline {
                 db.event("CHAT_IMPORTED","Чат импортирован: "+title+
                         "; nodes="+nodes.size()+"; messages="+messageCount,
                         project,0,source,"STATED","VERIFIED");
-                db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\\n",
+                db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\n",
                         project,0,source,"STATED","NOT_VERIFIED",0.5);
             }else{
                 db.event("CHAT_IMPORT_INCOMPLETE","В чате не найдено ни одного узла: "+title,
