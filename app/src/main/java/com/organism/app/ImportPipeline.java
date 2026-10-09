@@ -64,7 +64,7 @@ public class ImportPipeline {
     }
 
     private int ingestRoleTranscript(String name,String text,long project,long source)throws Exception{
-        String[] lines=text.split("\\n",-1);
+        String[] lines=text.split("\n",-1);
         int userMarkers=0,assistantMarkers=0;
         for(String line:lines){String role=line.trim().toLowerCase(Locale.ROOT);if("user".equals(role))userMarkers++;else if("chatgpt".equals(role)||"assistant".equals(role))assistantMarkers++;}
         // Conservative detection: require a repeated role-labelled structure, not one incidental word.
@@ -77,17 +77,17 @@ public class ImportPipeline {
             if(nextRole!=null){
                 if(role!=null&&body.toString().trim().length()>0){
                     String content=body.toString().trim();
-                    String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+i+"]\\nrole: "+role+"\\n"+content;
+                    String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+i+"]\nrole: "+role+"\n"+content;
                     db.memory("CHAT_MESSAGE",conversationTitle+" ["+role+" #"+(imported+1)+"]",msg,project,0,source,"STATED","NOT_VERIFIED",0.5);
                     db.event("CHAT_MESSAGE_IMPORTED","source="+name+"; role="+role+"; sequence="+(imported+1)+"; line_start="+startLine+"; line_end="+i,project,0,source,"STATED","NOT_VERIFIED");
                     imported++;
                 }
                 role=nextRole;body.setLength(0);startLine=i+2;
-            }else if(role!=null){if(body.length()>0)body.append("\\n");body.append(lines[i]);}
+            }else if(role!=null){if(body.length()>0)body.append("\n");body.append(lines[i]);}
         }
         if(role!=null&&body.toString().trim().length()>0){
             String content=body.toString().trim();
-            String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+lines.length+"]\\nrole: "+role+"\\n"+content;
+            String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+lines.length+"]\nrole: "+role+"\n"+content;
             db.memory("CHAT_MESSAGE",conversationTitle+" ["+role+" #"+(imported+1)+"]",msg,project,0,source,"STATED","NOT_VERIFIED",0.5);
             db.event("CHAT_MESSAGE_IMPORTED","source="+name+"; role="+role+"; sequence="+(imported+1)+"; line_start="+startLine+"; line_end="+lines.length,project,0,source,"STATED","NOT_VERIFIED");
             imported++;
