@@ -41,6 +41,13 @@ ORGANISM создаётся для непрерывности работы ме�
 6. Хранить неразобранные фрагменты и пробелы покрытия; не придумывать недостающие звенья.
 7. Прогнать длинную реальную историю ORGANISM как первый регрессионный материал и сравнить извлечённые события с известными решениями, ошибками и подтверждёнными исправлениями.
 
+## CI findings / experience candidates
+
+- **Observed failure:** first Android build reached Java compilation and failed because the Android `org.json.JSONObject` API in this project does not expose `valueToString(Object)`.
+- **Mitigation applied:** non-string JSON parts are now rendered with `String.valueOf(part)`; strings remain appended directly.
+- **Status:** `NOT_VERIFIED` until a build of the latest branch head passes. Do not report this fix as confirmed before a new CI run.
+- **Process lesson:** compile the actual Android target early; a method available in a different JSON implementation is not guaranteed to exist in Android's `org.json`.
+
 ## Регрессионные проверки перед объединением
 
 - RAW checksum сохраняется и совпадает с импортированным текстом.
