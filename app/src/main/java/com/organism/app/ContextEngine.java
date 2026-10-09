@@ -18,7 +18,9 @@ public final class ContextEngine {
     private final Db db;
     public ContextEngine(Db db){this.db=db;}
 
-    public String build(String query){
+    public String build(String query){return build(query,0);}
+
+    public String build(String query,long sessionId){
         String q=norm(query);
         long project=db.project("ORGANISM");
         String state=db.queryOne("SELECT summary FROM project_states WHERE project_id=? AND is_current=1 ORDER BY id DESC LIMIT 1",new String[]{""+project});
@@ -35,18 +37,13 @@ public final class ContextEngine {
 
         // Preserve immediate conversational continuity. User messages are direct reports;
         // model outputs remain explicitly unverified and are never treated as experience.
-        out.append("\nRECENT PROJECT DIALOGUE (chronological; last 12 messages):\n");
-        ArrayList<String> recentDialogue=new ArrayList<>();
-        Cursor h=db.query("SELECT kind,description,occurred_at FROM events WHERE project_id=? AND kind IN ('USER_MESSAGE','MODEL_OUTPUT','ERROR') ORDER BY id DESC LIMIT 12",new String[]{""+project});
-        while(h.moveToNext()){
-            String kind=h.getString(0);
-            String label="USER_MESSAGE".equals(kind)?"USER_STATED":("MODEL_OUTPUT".equals(kind)?"MODEL_OUTPUT_NOT_VERIFIED":"ERROR_EVENT");
-            recentDialogue.add("- "+h.getString(2)+" ["+label+"] "+shorten(nvl(h.getString(1),""),900));
-        }
+        out.append("\nRECENT SESSION DIALOGUE (chronological; last 12 messages):\n");
+        ArrayList<String[]> history=new ArrayList<>();
+        Cursor h=sessionId>0?db.query("SELECT kind,description,occurred_at FROM events WHERE project_id=? AND session_id=? AND kind IN ('USER_MESSAGE','MODEL_OUTPUT','ERROR') ORDER BY id DESC LIMIT 12",new String[]{""+project,""+sessionId}):db.query("SELECT kind,description,occurred_at FROM events WHERE 1=0",null);
+        while(h.moveToNext())history.add(new String[]{h.getString(0),h.getString(1),h.getString(2)});
         h.close();
-        Collections.reverse(recentDialogue);
-        if(recentDialogue.isEmpty())out.append("- none\n");
-        else for(String line:recentDialogue)out.append(line).append("\n");
+        Collections.reverse(history);
+        for(String[] e:history){String label="USER_MESSAGE".equals(e[0])?"USER_STATED": "MODEL_OUTPUT".equals(e[0])?"MODEL_OUTPUT_NOT_VERIFIED":"ERROR_EVENT";out.append("- [").append(label).append(" | ").append(e[2]).append("] ").append(e[1]).append("\n");}
 
         List<Candidate> memories=memoryCandidates(q,project);
         out.append("\nRANKED MEMORY:\n");
