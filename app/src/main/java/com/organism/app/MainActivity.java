@@ -173,19 +173,28 @@ public class MainActivity extends Activity {
             android.database.Cursor c=null;
             int shown=0;
             try{
-                c=db.query("SELECT s.id,s.source_name,COALESCE(s.external_id,''),COUNT(m.id),COALESCE(MAX(m.created_at),'') " +
+                c=db.query("SELECT s.id,s.source_name,COALESCE(s.external_id,''),COUNT(m.id),COALESCE(MAX(m.created_at),'')," +
+                    "(SELECT substr(x.content,1,260) FROM memory_objects x WHERE x.source_id=s.id AND x.kind='CHAT_MESSAGE' " +
+                    "AND (?='' OR x.content LIKE ?) ORDER BY x.id ASC LIMIT 1)," +
+                    "CASE WHEN ?='' THEN 0 ELSE (SELECT COUNT(*) FROM memory_objects z WHERE z.source_id=s.id AND z.kind='CHAT_MESSAGE' " +
+                    "AND z.id < (SELECT MIN(y.id) FROM memory_objects y WHERE y.source_id=s.id AND y.kind='CHAT_MESSAGE' AND y.content LIKE ?)) END " +
                     "FROM sources s LEFT JOIN memory_objects m ON m.source_id=s.id AND m.kind='CHAT_MESSAGE' " +
                     "WHERE s.source_type='CHAT_EXPORT_CONVERSATION' AND (?='' OR s.source_name LIKE ? OR EXISTS " +
                     "(SELECT 1 FROM memory_objects x WHERE x.source_id=s.id AND x.kind='CHAT_MESSAGE' AND x.content LIKE ?)) " +
                     "GROUP BY s.id HAVING COUNT(m.id)>0 ORDER BY s.id DESC LIMIT 500",
-                    new String[]{q,"%"+q+"%","%"+q+"%"});
+                    new String[]{q,"%"+q+"%",q,"%"+q+"%",q,"%"+q+"%","%"+q+"%"});
                 while(c.moveToNext()){
                     long sourceId=c.getLong(0);String title=c.getString(1);String external=c.getString(2);
-                    int count=c.getInt(3);
+                    int count=c.getInt(3);String snippet=c.getString(5);int matchOffset=c.getInt(6);
                     Button item=bt(title+"\n"+count+" сообщений"+(external.isEmpty()?"":" · ID "+external));
                     item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
-                    item.setOnClickListener(v->openImportedConversation(sourceId,title,count));
-                    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(3),0,dp(3));results.addView(item,lp);shown++;
+                    item.setOnClickListener(v->showImportedConversation(sourceId,title,q.isEmpty()?0:matchOffset/100));
+                    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(3),0,dp(3));results.addView(item,lp);
+                    if(!q.isEmpty()&&snippet!=null&&!snippet.isEmpty()){
+                        TextView match=tv("Совпадение: "+snippet,12,Color.rgb(91,108,133));
+                        match.setPadding(dp(10),dp(2),dp(10),dp(8));results.addView(match);
+                    }
+                    shown++;
                 }
             }catch(Exception e){results.addView(tv("Ошибка чтения архива: "+e.getMessage(),13,Color.RED));}
             finally{if(c!=null)c.close();}
