@@ -51,3 +51,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Status:** DONE for documenting the preference and process. Platform UI connector itself is NOT IMPLEMENTED/NOT VERIFIED by this documentation change.
 - **Data safety:** no application database or user data touched.
 - **Next:** inspect current Android source and schema, then deliver imported conversation archive/search; in parallel or immediately after, inspect current connector implementation and assess a permitted official-platform WebView interaction path without bypassing access/usage controls.
+
+
+## 2026-10-09 — WL-005 — Imported conversation archive/search
+
+- **Lifecycle:** STARTED → CHANGED → PARTIAL; CI queued, not yet verified; device test not performed.
+- **Goal:** make imported ChatGPT conversations browsable and searchable without resetting or rewriting the user's existing database.
+- **Starting point:** branch `fix/zip-import-crash-and-archive-restore`; prior handoff commit `fa7b297bcdb3e9e8cf57397e9a1069c54422353d`. Inspected `Db.java`, `ImportPipeline.java`, and `MainActivity.java`; conversation messages are stored as `CHAT_MESSAGE` memory objects linked to a `CHAT_EXPORT_CONVERSATION` source.
+- **Changes:** commit `aa35dfd53a9e489ba2fcc8624c3efd646abaccad` adds an imported-chat archive entry from the import screen and extra menu, searches conversation titles/message bodies, displays matching conversations and opens a selectable/copyable ordered transcript (up to 3,000 messages per opened conversation; 500 conversation results maximum).
+- **Import integrity correction:** while tracing the archive query, found `parseChatJsonStream` created a conversation source before calling `parseChatConversation`, which creates its own source. This produced duplicate source records and empty archive entries. Fixed in commit `fc3acbe57d745de04953b55cac8e5035d0357f1c` so each parsed conversation gets its source from `parseChatConversation` only.
+- **Verification:** both changed files were fetched back from GitHub. Android build workflow run `37943562566` is queued for exact commit `fc3acbe57d745de04953b55cac8e5035d0357f1c` (https://github.com/alexbotleh-oss/organism/actions/runs/37943562566). No green build result yet. No device test performed.
+- **Risks/limits:** existing DB is not reset or migrated by these changes. Previously imported duplicate source rows, if already present in the user's database, are not deleted or automatically deduplicated; preserve them until a safe, auditable repair plan is designed. Transcript ordering currently follows insertion ID, which is the parser's import order; unusual branching conversations need device/data validation.
+- **Status:** PARTIAL — archive/search UI and duplicate-source creation fix committed; build pending; imported ZIP completeness and Android behavior unverified on device. Official-platform WebView connector remains unimplemented/unverified, and API subscription limits are not bypassed.
+- **Next action:** wait for workflow run `37943562566`; if green, inspect the exact build artifact and logs, then validate search/open/transcript and data counts on the user's existing device database without re-importing the ZIP. If CI fails, fix the exact failure before distributing an APK.
