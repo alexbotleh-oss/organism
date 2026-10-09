@@ -59,18 +59,27 @@ public class MainActivity extends Activity {
         navScroll.setHorizontalScrollBarEnabled(false);
         navScroll.setFillViewport(true);
         LinearLayout nav=new LinearLayout(this);
-        nav.setOrientation(LinearLayout.HORIZONTAL);
-        nav.setGravity(Gravity.CENTER_VERTICAL);
+        nav.setOrientation(LinearLayout.VERTICAL);
         nav.setPadding(dp(4),dp(2),dp(4),dp(4));
-        String[][] items={{"⌂\\nГлавная","home"},{"▣\\nЧат","chat"},{"◉\\nПамять","memory"},{"⇧\\nИмпорт","import"},{"▤\\nБаза","database"},{"⚙\\nНастройки","settings"}};
-        for(String[] it:items){
-            Button b=bt(it[0]);
-            b.setTextSize(11);
-            b.setGravity(Gravity.CENTER);
-            b.setMinHeight(dp(48));
-            b.setContentDescription(it[1]);
-            b.setOnClickListener(v->navigate(it[1]));
-            nav.addView(b,new LinearLayout.LayoutParams(0,dp(56),1f));
+        String[][] items={{"⌂  Главная","home"},{"▣  Чат","chat"},{"◉  Память","memory"},{"⇧  Импорт","import"},{"▤  База","database"},{"⚙  Настройки","settings"}};
+        for(int rowIndex=0;rowIndex<2;rowIndex++){
+            LinearLayout row=new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for(int col=0;col<3;col++){
+                String[] it=items[rowIndex*3+col];
+                Button b=bt(it[0]);
+                b.setTextSize(11);
+                b.setGravity(Gravity.CENTER);
+                b.setSingleLine(false);
+                b.setMaxLines(2);
+                b.setMinHeight(dp(44));
+                b.setContentDescription(it[1]);
+                b.setOnClickListener(v->navigate(it[1]));
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(44),1f);
+                bp.setMargins(dp(2),dp(1),dp(2),dp(1));
+                row.addView(b,bp);
+            }
+            nav.addView(row,new LinearLayout.LayoutParams(-1,-2));
         }
         navScroll.addView(nav,new HorizontalScrollView.LayoutParams(-1,-2));
         root.addView(navScroll,new LinearLayout.LayoutParams(-1,-2));
