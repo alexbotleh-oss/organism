@@ -127,3 +127,14 @@ The build is verified; device behavior is not. Next action is install/test this 
 - Instrumentation requirements: ordered timestamps and named stages for browser launch, callback listener readiness, callback arrival/timeout, state/PKCE validation status, token exchange outcome, persisted auth state, activity resume/deep-link events; redacted errors/statuses; copy/export trace. Never log auth codes, tokens, cookies, passwords, or unnecessary personal information.
 - Next action: inspect current branch HEAD and the exact OAuth code path (AndroidManifest.xml, MainActivity, callback listener/server, token exchange and connection-state persistence); then implement diagnostics before changing behavior further. Add tests and verify CI for the exact commit. Have the user run one authorization attempt on the phone and share the trace; distinguish app/browser/callback/token-exchange failure from the separate subscription_sharing_usage_limit_exceeded service limit.
 - Data safety: no database, imported archive, saved credentials, or current auth state was reset or migrated.
+
+
+## Handoff update — diagnostic trace implementation (2026-10-09)
+
+- Working branch: `fix/oauth-diagnostic-trace-20261009`, based on `fix/zip-import-crash-and-archive-restore`.
+- Implemented a bounded, local, redacted trace in `app/src/main/java/com/organism/app/AuthTrace.java` and instrumented `MainActivity.java`. Settings now exposes “Журнал диагностики авторизации” with copy and clear controls.
+- Trace stages include auth start, loopback listener ready, browser launch request, callback wait/arrival, state match status, code presence without its value, token exchange begin/success, ID-token validation, scope status, credential persistence, generic failure class/stage and activity resume.
+- Privacy/data safety: do not log auth codes, tokens, cookies, passwords, full callback URLs or raw server response bodies. The trace is limited to 120 lines. No database, imported archive, saved credentials or authentication state was reset/migrated.
+- Commits: `c3a41f38a82150c3e2789f61bc032e7a52706e66` and `0ccf0c0baef1d25546b0df94ef179a9bb93db62a`.
+- Not yet verified: Android build/CI, APK artifact, and device test. This is observability instrumentation, not a confirmed authorization fix.
+- Next: add/verify safe token-endpoint HTTP status breadcrumbs if possible; run Android CI on the exact branch head; inspect artifact and compile result; then install that build on the user's phone and run one login attempt. Use the copied trace to locate the first failed/missing stage before changing OAuth behavior.
