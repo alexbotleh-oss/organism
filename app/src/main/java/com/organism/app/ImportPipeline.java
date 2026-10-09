@@ -89,13 +89,14 @@ public class ImportPipeline {
 
             ArrayList<String> ordered=orderChatNodes(nodes);
             String currentNode=conversation.optString("current_node","");
-            StringBuilder transcript=new StringBuilder();
-            transcript.append("CHAT EXPORT STRUCTURE v1\n")
-                    .append("conversation_id: ").append(conversation.optString("conversation_id","UNKNOWN")).append("\n")
-                    .append("title: ").append(title).append("\n")
-                    .append("current_node: ").append(currentNode.isEmpty()?"UNKNOWN":currentNode).append("\n")
-                    .append("node_count: ").append(nodes.size()).append("\n")
-                    .append("ordering: parent/children traversal; disconnected nodes sorted by message time and node id\n\n");
+            String header="CHAT EXPORT INDEX v1\n"
+                    +"conversation_id: "+conversation.optString("conversation_id","UNKNOWN")+"\n"
+                    +"title: "+title+"\n"
+                    +"current_node: "+(currentNode.isEmpty()?"UNKNOWN":currentNode)+"\n"
+                    +"node_count: "+nodes.size()+"\n"
+                    +"ordering: parent/children traversal; disconnected nodes sorted by message time and node id\n"
+                    +"provenance_source_id: "+source+"\n"
+                    +"message_nodes: stored as individually searchable memory objects\n";
 
             int messageCount=0;
             for(String nodeId:ordered){
@@ -105,14 +106,7 @@ public class ImportPipeline {
                 JSONArray children=node.optJSONArray("children");
                 String childIds=children==null?"[]":children.toString();
                 JSONObject message=node.optJSONObject("message");
-                transcript.append("[NODE id=").append(nodeId)
-                        .append(" parent=").append(parent)
-                        .append(" children=").append(childIds)
-                        .append(" current=").append(nodeId.equals(currentNode))
-                        .append("]\n");
-
                 if(message==null){
-                    transcript.append("[STRUCTURAL NODE WITHOUT MESSAGE]\n\n");
                     db.event("CHAT_NODE_IMPORTED","conversation="+title+"; node="+nodeId+
                             "; parent="+parent+"; children="+childIds+"; message=none",
                             project,0,source,"STATED","NOT_VERIFIED");
@@ -128,16 +122,19 @@ public class ImportPipeline {
                 JSONObject content=message.optJSONObject("content");
                 String body=chatMessageText(content);
 
-                transcript.append("message_id: ").append(messageId)
-                        .append(" | role: ").append(role)
-                        .append(authorName.isEmpty()?"":" | author: "+authorName)
-                        .append(" | time: ").append(timestamp)
-                        .append(channel.isEmpty()?"":" | channel: "+channel)
-                        .append("\n")
-                        .append(role).append(": ").append(body).append("\n\n");
+                String nodeText="[NODE id="+nodeId+" parent="+parent+" children="+childIds+
+                        " current="+nodeId.equals(currentNode)+"]\\n"
+                        +"message_id: "+messageId+" | role: "+role
+                        +(authorName.isEmpty()?"":" | author: "+authorName)
+                        +" | time: "+timestamp
+                        +(channel.isEmpty()?"":" | channel: "+channel)+"\\n"
+                        +role+": "+body;
 
+                // One searchable memory object per message keeps later turns retrievable
+                // instead of truncating an entire long conversation to its first characters.
+                db.memory("CHAT_MESSAGE",title+" [node "+nodeId+"]",nodeText,
+                        project,0,source,"STATED","NOT_VERIFIED",0.5);
                 // Store structural provenance separately from semantic interpretation.
-                // Imported text is not promoted to verified knowledge or experience.
                 db.event("CHAT_MESSAGE_IMPORTED","conversation="+title+"; node="+nodeId+
                         "; message="+messageId+"; parent="+parent+"; children="+childIds+
                         "; role="+role+"; time="+timestamp+"; channel="+channel,
@@ -149,8 +146,8 @@ public class ImportPipeline {
                 db.event("CHAT_IMPORTED","Чат импортирован: "+title+
                         "; nodes="+nodes.size()+"; messages="+messageCount,
                         project,0,source,"STATED","VERIFIED");
-                db.memory("CONTEXT",title,transcript.toString(),project,0,source,
-                        "STATED","NOT_VERIFIED",0.5);
+                db.memory("CONTEXT_INDEX",title,header+"message_count: "+messageCount+"\\n",
+                        project,0,source,"STATED","NOT_VERIFIED",0.5);
             }else{
                 db.event("CHAT_IMPORT_INCOMPLETE","В чате не найдено ни одного узла: "+title,
                         project,0,source,"STATED","NOT_VERIFIED");
