@@ -58,3 +58,8 @@ Next step:
 - If work is incomplete, record `PARTIAL` or `BLOCKED` and explain what remains.
 
 This document is intended to be copied into the ChatGPT Project Instructions as the concise universal entry point. The tracked repository copy ensures the rules survive chat/session changes.
+
+
+## Mandatory Android UI standard — all APK work
+
+Before designing or changing ANY Android screen, read `docs/ANDROID_UI_STANDARD_v1.0.md`. This applies to the entire ORGANISM app, not just the current WebView. Safe-area/window-inset handling, consistent outer spacing, touch targets of at least 48×48 dp, keyboard-aware layout, reachable primary actions, adaptive sizing, accessibility, and screen-by-screen verification are release requirements. Never call a screen ready just because it compiles. Every APK release must include a UI review record and must distinguish CI build evidence from emulator/physical-device testing. If a control is clipped or unreachable, treat it as a defect/blocker and fix it before adding unrelated features.
