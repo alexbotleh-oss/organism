@@ -168,3 +168,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Privacy/data safety:** no codes, tokens, cookies, passwords, full callback URLs or response bodies are added to the trace. No database, archive, stored credentials or app data was reset or migrated.
 - **Status:** PARTIAL. This is additional diagnostic instrumentation, not an OAuth fix. The current evidence points to a missing callback at the time of capture; root cause remains unknown.
 - **Next action:** confirm CI for commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f`; if successful, share the new APK artifact. Then one controlled device attempt should be allowed to finish (up to 120 seconds) and the full updated trace copied, including any `CALLBACK_WAIT TIMEOUT` or HTTP status event.
+
+
+## 2026-10-09 — WL-014 — Mobile-first event observer decision
+
+- **Status:** DECISION RECORDED; implementation NOT STARTED.
+- **User-confirmed direction:** start on Android phone because it is always with the user; PC client or PC-hosted executor is future scope, not a prerequisite.
+- **Goal:** reduce manual GitHub checking by delivering meaningful GitHub Actions state changes to the phone with task/branch/commit context.
+- **Architecture:** separate Android client, event/state/memory layer, and replaceable GitHub observer/connector. Keep event contracts portable for a future PC client.
+- **Initial scope:** relevant workflow completion/failure/cancellation and unavailable states; run link, branch and commit; event deduplication and durable history; never confuse CI success with device/feature verification.
+- **Open choice:** compare webhooks plus a small receiver with periodic polling. Android background execution alone is not guaranteed always-on. Push delivery such as FCM is a candidate, not implemented or selected.
+- **Safety:** observing/reporting is distinct from permission to edit, commit or perform destructive actions. No app code, database, credentials or user data changed. No tests/build/device validation were run for this decision.
+- **Decision document:** docs/MOBILE_FIRST_EVENT_OBSERVER_DECISION_v0.1.md, commit eb190254ff1f25543175f13ba14baa7572568a3d.
+- **Next:** check CI run 37955125073 for commit 8396fc6b29661f14bbe80dd16fbb86f6a91b808f, then define acceptance criteria and choose webhook vs polling before implementation.
