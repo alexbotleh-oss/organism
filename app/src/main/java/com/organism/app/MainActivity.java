@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
     static final int CALLBACK_PORT_HINT=1455;
 
     Db db; ImportPipeline importer; ReflexEngine reflex=new ReflexEngine(); ContextEngine contextEngine; ExperienceEngine experienceEngine; long activeSessionId=0;
-    LinearLayout root,content; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner; ScrollView chatScroll; HorizontalScrollView navScroll;
+    LinearLayout root,content; ScrollView contentScroll; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner; ScrollView chatScroll; HorizontalScrollView navScroll;
     Handler main=new Handler(Looper.getMainLooper()); boolean busy=false; String screen="home";
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model=""; long expiresAt=0;
@@ -60,7 +60,7 @@ public class MainActivity extends Activity {
         root.addView(top);
         View separator=new View(this);separator.setBackgroundColor(Color.rgb(225,231,240));root.addView(separator,new LinearLayout.LayoutParams(-1,dp(1)));
         content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(16),dp(12),dp(16),dp(20));
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        contentScroll=new ScrollView(this);contentScroll.setFillViewport(true);contentScroll.setClipToPadding(false);contentScroll.addView(content);root.addView(contentScroll,new LinearLayout.LayoutParams(-1,0,1));
         navScroll=new HorizontalScrollView(this);navScroll.setHorizontalScrollBarEnabled(false);navScroll.setBackgroundColor(Color.WHITE);
         LinearLayout nav=new LinearLayout(this);nav.setGravity(Gravity.CENTER_VERTICAL);nav.setPadding(dp(5),dp(5),dp(5),dp(5));
         String[][] items={{"⌂  Главная","home"},{"◉  Чат","chat"},{"✳  Память","memory"},{"⇧  Импорт","import"},{"•••  Ещё","more"}};
@@ -68,8 +68,10 @@ public class MainActivity extends Activity {
         navScroll.addView(nav,new HorizontalScrollView.LayoutParams(-1,-2));root.addView(navScroll);setContentView(root);
     }
     void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else if("more".equals(s))showQuickMenu();else showSettings();}
-    void clear(String title){screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
+    void clear(String title){if("chat".equals(screen))deactivateChatLayout();screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
     void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(16),dp(15),dp(16),dp(15));box.setBackground(rounded(Color.WHITE,20));box.setElevation(dp(1));TextView h=tv(title,17,Color.rgb(20,32,52));h.setTypeface(null,android.graphics.Typeface.BOLD);h.setPadding(0,0,0,dp(5));box.addView(h);TextView t=tv(body,14,Color.rgb(69,81,101));t.setLineSpacing(dp(3),1.0f);t.setPadding(0,0,0,0);box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(14));content.addView(box,p);}
+    void activateChatLayout(){if(content.getParent()==contentScroll){contentScroll.removeView(content);root.removeView(contentScroll);root.addView(content,new LinearLayout.LayoutParams(-1,0,1),2);}content.setPadding(dp(12),dp(6),dp(12),dp(8));}
+    void deactivateChatLayout(){if(content.getParent()==root){root.removeView(content);content.setPadding(dp(16),dp(12),dp(16),dp(20));contentScroll.addView(content);root.addView(contentScroll,new LinearLayout.LayoutParams(-1,0,1),2);}}
     void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);Button quickSettings=bt("Настройки и экспорт базы");quickSettings.setOnClickListener(v->showSettings());content.addView(quickSettings);}
     void showQuickMenu(){
         String[] labels={"Чат","Память","Задачи","Источники","Опыт","Проверка импорта","Импорт","Настройки","Экспорт базы"};
@@ -81,39 +83,50 @@ public class MainActivity extends Activity {
     void showLegacyChat(){TextView t=tv(db.legacyChat(),14,Color.rgb(30,36,48));t.setTextIsSelectable(true);ScrollView s=new ScrollView(this);s.addView(t);new AlertDialog.Builder(this).setTitle("Старая общая история").setView(s).setPositiveButton("Закрыть",null).show();}
     void showChat(){
         clear("Чат");
-        card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");
-        card("Подключение","Агент: ORGANISM\nChatGPT: "+getPrefs().getString("email","не определён")+"\nМодель выбирается ниже.");
-        LinearLayout row=new LinearLayout(this);
-        row.addView(tv("Модель",14,Color.DKGRAY),new LinearLayout.LayoutParams(0,-2,.25f));
+        activateChatLayout();
+        // Chat is a full-screen workspace: the history takes all free height,
+        // the composer stays at the bottom, and secondary actions live in the ••• menu.
+        LinearLayout modelRow=new LinearLayout(this);
+        modelRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView modelLabel=tv("Модель",14,Color.rgb(69,81,101));
+        modelRow.addView(modelLabel,new LinearLayout.LayoutParams(dp(72),-2));
         modelSpinner=new Spinner(this);
-        row.addView(modelSpinner,new LinearLayout.LayoutParams(0,-2,.75f));
-        content.addView(row);
+        modelRow.addView(modelSpinner,new LinearLayout.LayoutParams(0,-2,1));
+        content.addView(modelRow,new LinearLayout.LayoutParams(-1,-2));
+
         chatScroll=new ScrollView(this);
+        chatScroll.setFillViewport(true);
+        chatScroll.setClipToPadding(false);
         chatView=tv(db.chat(activeSessionId),14,Color.rgb(30,36,48));
         chatView.setTextIsSelectable(true);
-        chatView.setPadding(14,14,14,14);
-        chatView.setBackgroundColor(Color.WHITE);
+        chatView.setPadding(dp(14),dp(12),dp(14),dp(12));
+        chatView.setBackground(rounded(Color.WHITE,18));
         chatScroll.addView(chatView,new ScrollView.LayoutParams(-1,-2));
-        LinearLayout.LayoutParams chatParams=new LinearLayout.LayoutParams(-1,0,1f);
-        chatParams.setMargins(0,8,0,8);
-        content.addView(chatScroll,chatParams);
-        Button copyChat=bt("Копировать текущий диалог");
-        copyChat.setOnClickListener(v->copyText("История чата",db.chat(activeSessionId)));
-        content.addView(copyChat);
-        Button newChat=bt("Начать новый диалог");newChat.setOnClickListener(v->startNewChat());content.addView(newChat);
-        Button oldChat=bt("Показать старую общую историю");oldChat.setOnClickListener(v->showLegacyChat());content.addView(oldChat);
+        LinearLayout.LayoutParams historyParams=new LinearLayout.LayoutParams(-1,0,1f);
+        historyParams.setMargins(0,dp(6),0,dp(8));
+        content.addView(chatScroll,historyParams);
+
+        LinearLayout composer=new LinearLayout(this);
+        composer.setOrientation(LinearLayout.VERTICAL);
+        composer.setBackground(rounded(Color.WHITE,20));
+        composer.setPadding(dp(10),dp(5),dp(10),dp(8));
         chatInput=new EditText(this);
         chatInput.setHint("Напишите запрос…");
-        chatInput.setMinLines(2);
-        chatInput.setGravity(Gravity.TOP);
-        content.addView(chatInput);
+        chatInput.setMinLines(1);
+        chatInput.setMaxLines(5);
+        chatInput.setGravity(Gravity.TOP|Gravity.START);
+        chatInput.setTextSize(16);
+        chatInput.setBackgroundColor(Color.TRANSPARENT);
+        composer.addView(chatInput,new LinearLayout.LayoutParams(-1,-2));
         Button send=bt("Отправить через ORGANISM → GPT");
         send.setOnClickListener(v->send());
-        content.addView(send);
-        Button ctx=bt("Показать и скопировать Context Snapshot");
-        ctx.setOnClickListener(v->showContextDialog());
-        content.addView(ctx);
-        if(hasCreds())loadModels();else card("ChatGPT","Подключите аккаунт, чтобы использовать модель. Импорт и база работают локально без подключения.");
+        composer.addView(send,new LinearLayout.LayoutParams(-1,-2));
+        content.addView(composer,new LinearLayout.LayoutParams(-1,-2));
+        if(hasCreds())loadModels();
+        else{
+            TextView local=tv("ORGANISM работает локально. Подключите ChatGPT через меню •••, чтобы отправлять запросы модели.",13,Color.rgb(91,108,133));
+            content.addView(local,new LinearLayout.LayoutParams(-1,-2));
+        }
     }
     void showContextDialog(){
         String snapshot=contextEngine.build(chatInput==null?"":chatInput.getText().toString(),activeSessionId);
