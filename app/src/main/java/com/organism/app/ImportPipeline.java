@@ -76,19 +76,20 @@ public class ImportPipeline {
 
     private void importZip(String name,byte[] bytes)throws Exception{
         ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(bytes));ZipEntry e;int n=0;long project=db.project("ORGANISM");
-        while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=new String(b,StandardCharsets.UTF_8);
-            if(p.endsWith("conversations.json")||p.endsWith("chat.json"))parseChatJson(e.getName(),text);else if(text.length()>0)ingest("CHAT_EXPORT",e.getName(),e.getName(),text);n++;}
+        while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=decodeText(b);
+            if(p.endsWith("conversations.json")||p.endsWith("chat.json")){long rawSource=db.source("CHAT_EXPORT_RAW",e.getName(),e.getName(),text,sha(text));parseChatJson(e.getName(),text,rawSource);}else if(text.length()>0)ingest("CHAT_EXPORT",e.getName(),e.getName(),text);n++;}
         z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","VERIFIED");writeSnapshot(project);
     }
 
-    private void parseChatJson(String name,String json)throws Exception{
+    private void parseChatJson(String name,String json,long rawSourceId)throws Exception{
         JSONArray conversations=new JSONArray(json);
         long project=db.project("ORGANISM");
         for(int i=0;i<conversations.length();i++){
             JSONObject conversation=conversations.getJSONObject(i);
             String title=conversation.optString("title","ChatGPT conversation");
             String raw=conversation.toString();
-            long source=db.source("CHAT_EXPORT",title,name,raw,sha(raw));
+            String conversationId=conversation.optString("conversation_id","");
+            long source=db.source("CHAT_EXPORT_CONVERSATION",title,name,null,sha(raw),rawSourceId,conversationId);
             JSONObject mapping=conversation.optJSONObject("mapping");
             if(mapping==null||mapping.length()==0){
                 db.event("CHAT_IMPORT_INCOMPLETE","Чат без mapping: "+title,project,0,source,"STATED","NOT_VERIFIED");
