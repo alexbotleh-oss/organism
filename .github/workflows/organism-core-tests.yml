@@ -1,0 +1,22 @@
+name: ORGANISM Core Tests
+
+on:
+  push:
+    branches:
+      - feature/organism-core-v0.4
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile core modules
+        run: python -m compileall -q core/organism_core core/tests
+      - name: Run regression tests
+        run: PYTHONPATH=core python -m unittest discover -s core/tests -v
