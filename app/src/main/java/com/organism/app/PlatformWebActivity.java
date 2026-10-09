@@ -10,6 +10,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.net.Uri;
 import android.webkit.WebChromeClient;
+import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -23,6 +24,8 @@ public class PlatformWebActivity extends Activity {
     public static final String EXTRA_TURN_ID = "com.organism.app.PLATFORM_WEB_TURN_ID";
     private WebView webView;
     private String prompt = "";
+    private static final int FILE_CHOOSER_REQUEST = 4107;
+    private ValueCallback<Uri[]> pendingFileChooser;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -85,7 +88,29 @@ public class PlatformWebActivity extends Activity {
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         webView.setWebViewClient(new WebViewClient());
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePathCallback,
+                    FileChooserParams fileChooserParams) {
+                if (pendingFileChooser != null) {
+                    pendingFileChooser.onReceiveValue(null);
+                    pendingFileChooser = null;
+                }
+                pendingFileChooser = filePathCallback;
+                try {
+                    Intent chooserIntent = fileChooserParams.createIntent();
+                    startActivityForResult(chooserIntent, FILE_CHOOSER_REQUEST);
+                    return true;
+                } catch (Exception e) {
+                    pendingFileChooser.onReceiveValue(null);
+                    pendingFileChooser = null;
+                    Toast.makeText(PlatformWebActivity.this,
+                            "Не удалось открыть выбор файла: " + e.getClass().getSimpleName(),
+                            Toast.LENGTH_LONG).show();
+                    return false;
+                }
+            }
+        });
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
         webView.loadUrl("https://chatgpt.com/");
@@ -138,12 +163,28 @@ public class PlatformWebActivity extends Activity {
         Toast.makeText(this, "Подготовленный запрос скопирован. Вставьте его в ChatGPT Web.", Toast.LENGTH_LONG).show();
     }
 
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER_REQUEST) {
+            if (pendingFileChooser != null) {
+                Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                pendingFileChooser.onReceiveValue(results);
+                pendingFileChooser = null;
+            }
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
     @Override public void onBackPressed() {
         if (webView != null && webView.canGoBack()) webView.goBack();
         else super.onBackPressed();
     }
 
     @Override protected void onDestroy() {
+        if (pendingFileChooser != null) {
+            pendingFileChooser.onReceiveValue(null);
+            pendingFileChooser = null;
+        }
         if (webView != null) {
             webView.stopLoading();
             webView.setWebChromeClient(null);
