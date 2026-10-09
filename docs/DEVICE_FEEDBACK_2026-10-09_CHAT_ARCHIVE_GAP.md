@@ -32,3 +32,20 @@
 - Do not delete or reset the current database.
 - Do not claim all 74 conversations or 10,034 messages are correct until compared against the source export and tested through the UI.
 - Keep this report and all subsequent work stages in the repository work log and continuity handoff.
+
+## Follow-up acceptance criteria — archive navigation and search
+
+Source inspection on 2026-10-09 found that an archive list/search screen and a transcript viewer already exist in `MainActivity.java`. Therefore, do not duplicate the screen; improve and verify the actual navigation gap.
+
+- [ ] Search accepts a phrase and returns matching conversation title plus a readable snippet from a matching message.
+- [ ] Selecting a search result opens the imported conversation at the page containing the first matching message, not merely at the start of a long transcript.
+- [ ] Selecting a conversation without a search query opens its transcript and retains existing pagination for long conversations.
+- [ ] Imported archive stays separate from ORGANISM session history.
+- [ ] Search is read-only; no imported records, RAW source, or credentials are deleted or rewritten.
+- [ ] SQL uses bound parameters for user text; no concatenated user input in SQL predicates.
+- [ ] Android CI is checked against the exact code commit; CI does not count as real-device verification.
+- [ ] Test query cases: empty query, title-only match, body-only match, no match, and a match beyond the first 100 messages.
+
+## Implementation note
+
+The current archive list searches `source_name` and `memory_objects.content` but only displays conversation title/count, and selecting a result opens a transcript dialog from the beginning. The next minimal change should expose a matching-message snippet and navigate to the matching 100-message page while preserving the full archive and existing database.
