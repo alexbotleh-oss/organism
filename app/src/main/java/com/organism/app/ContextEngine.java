@@ -31,11 +31,11 @@ public final class ContextEngine {
         out.append("ACTIVE TASKS:\n");
         Cursor t=db.query("SELECT logical_id,title,status,description,priority FROM tasks WHERE project_id=? AND status IN ('OPEN','IN_PROGRESS','WAITING') ORDER BY priority DESC,updated_at DESC LIMIT 12",new String[]{""+project});
         int taskN=0; while(t.moveToNext()){out.append("- ").append(t.getString(0)).append(" | ").append(t.getString(1)).append(" | ").append(t.getString(2)).append(" | ").append(nvl(t.getString(3),"")).append("\n");taskN++;} t.close();
-        if(taskN==0) out.append("- none\\n");
+        if(taskN==0) out.append("- none\n");
 
         // Preserve immediate conversational continuity. User messages are direct reports;
         // model outputs remain explicitly unverified and are never treated as experience.
-        out.append("\\nRECENT PROJECT DIALOGUE (chronological; last 12 messages):\\n");
+        out.append("\nRECENT PROJECT DIALOGUE (chronological; last 12 messages):\n");
         ArrayList<String> recentDialogue=new ArrayList<>();
         Cursor h=db.query("SELECT kind,description,verification_status,occurred_at FROM events WHERE project_id=? AND kind IN ('USER_MESSAGE','MODEL_OUTPUT','ERROR') ORDER BY id DESC LIMIT 12",new String[]{""+project});
         while(h.moveToNext()){
@@ -45,8 +45,8 @@ public final class ContextEngine {
         }
         h.close();
         Collections.reverse(recentDialogue);
-        if(recentDialogue.isEmpty())out.append("- none\\n");
-        else for(String line:recentDialogue)out.append(line).append("\\n");
+        if(recentDialogue.isEmpty())out.append("- none\n");
+        else for(String line:recentDialogue)out.append(line).append("\n");
 
         List<Candidate> memories=memoryCandidates(q,project);
         out.append("\nRANKED MEMORY:\n");
