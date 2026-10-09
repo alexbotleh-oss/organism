@@ -51,7 +51,22 @@ public class Db extends SQLiteOpenHelper {
     public int count(String t){Cursor c=query("SELECT COUNT(*) FROM "+t,null);try{c.moveToFirst();return c.getInt(0);}finally{c.close();}}
     public long project(String name){String q=queryOne("SELECT id FROM projects WHERE name=?",new String[]{name});if(q!=null)return Long.parseLong(q);ContentValues v=v();v.put("logical_id",id("PRJ"));v.put("name",name);v.put("status","ACTIVE");v.put("created_at",now());v.put("updated_at",now());return getWritableDatabase().insert("projects",null,v);}
     public long state(long p){String q=queryOne("SELECT id FROM project_states WHERE project_id=? AND is_current=1 ORDER BY id DESC LIMIT 1",new String[]{""+p});return q==null?0:Long.parseLong(q);}
-    public long source(String type,String name,String path,String raw,String checksum){ContentValues v=v();v.put("logical_id",id("SRC"));v.put("source_type",type);v.put("source_name",name);v.put("source_path",path);v.put("raw_text",raw);v.put("checksum",checksum);v.put("created_at",now());return getWritableDatabase().insert("sources",null,v);}
+    public long source(String type,String name,String path,String raw,String checksum){
+        return source(type,name,path,raw,checksum,0,null);
+    }
+    public long source(String type,String name,String path,String raw,String checksum,long parentSourceId,String externalId){
+        ContentValues v=v();
+        v.put("logical_id",id("SRC"));
+        v.put("source_type",type);
+        v.put("source_name",name);
+        v.put("source_path",path);
+        if(raw!=null)v.put("raw_text",raw);
+        if(checksum!=null)v.put("checksum",checksum);
+        if(parentSourceId>0)v.put("parent_source_id",parentSourceId);
+        if(externalId!=null&&!externalId.isEmpty())v.put("external_id",externalId);
+        v.put("created_at",now());
+        return getWritableDatabase().insert("sources",null,v);
+    }
     public long event(String kind,String desc,long p,long task,long src,String claim,String verify){ContentValues v=v();v.put("logical_id",id("EVT"));v.put("project_id",p>0?p:null);v.put("state_id",state(p)>0?state(p):null);v.put("task_id",task>0?task:null);v.put("kind",kind);v.put("description",desc);v.put("claim_status",claim);v.put("verification_status",verify);v.put("source_id",src>0?src:null);v.put("occurred_at",now());v.put("created_at",now());return getWritableDatabase().insert("events",null,v);}
     public long memory(String kind,String title,String content,long p,long task,long src,String claim,String verify,double conf){String n=now();ContentValues v=v();v.put("logical_id",id("MEM"));v.put("kind",kind);v.put("title",title);v.put("content",content);v.put("project_id",p>0?p:null);v.put("state_id",state(p)>0?state(p):null);v.put("task_id",task>0?task:null);v.put("source_id",src>0?src:null);v.put("claim_status",claim);v.put("verification_status",verify);v.put("confidence",conf);v.put("created_at",n);v.put("updated_at",n);v.put("last_accessed_at",n);return getWritableDatabase().insert("memory_objects",null,v);}
     public void relation(long a,long b,String type,long src){ContentValues v=v();v.put("logical_id",id("REL"));v.put("from_object_id",a);v.put("to_object_id",b);v.put("relation_type",type);v.put("source_id",src>0?src:null);v.put("created_at",now());getWritableDatabase().insert("relations",null,v);}
