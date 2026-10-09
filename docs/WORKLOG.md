@@ -212,3 +212,15 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no database, imported archive, OAuth credentials, or app data was reset or migrated. Pending prompt/context is held in app-private preferences until response import or replacement by another prepared prompt. The user explicitly triggers response import; it is stored as unverified model output.
 - **Status:** PARTIAL — MVP source committed; CI/device verification pending.
 - **Next action:** inspect the exact updated source and CI result. If build passes, install the resulting APK and test one non-sensitive prompt through ChatGPT Web; record whether sign-in works, whether clipboard copy/paste works, and whether one response is saved exactly once. Do not repeat API sends while the plan limit is exhausted.
+
+
+## 2026-10-09 — WL-017 — Make prepared web prompt inspectable
+
+- **Lifecycle:** CHANGED → CI PENDING → DEVICE TEST PENDING.
+- **Goal:** let the user see the exact context-bearing text before manually sending it to ChatGPT Web, instead of relying on the clipboard alone.
+- **Starting point:** WL-016 manual WebView connector MVP; activity already opened the official HTTPS site and supported explicit clipboard copy.
+- **Change:** commit `d88a1eca21136b37fe8a25991d25d2d4fbb1b2ab` adds a selectable preview dialog for the exact prepared prompt and a copy action. This is read-only display of the prepared text; it does not send it or read the page.
+- **Verification:** source fetched back from GitHub after update; combined commit status query returned no checks/statuses for this commit, so build verification is still pending. No device test has been run.
+- **Data safety:** no database/archive/credential changes. Prompt includes selected Context Snapshot and user text, so the preview makes clear what the user is about to copy into ChatGPT Web. No automatic page interaction was added.
+- **Status:** PARTIAL. Exact prompt preview implemented; compile and WebView/device behavior unverified.
+- **Next action:** obtain a successful Android build for the latest branch commit; then install that exact APK and test the preview/copy/manual send/answer import flow once.
