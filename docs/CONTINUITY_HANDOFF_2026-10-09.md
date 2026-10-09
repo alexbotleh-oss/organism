@@ -138,3 +138,11 @@ The build is verified; device behavior is not. Next action is install/test this 
 - Commits: `c3a41f38a82150c3e2789f61bc032e7a52706e66` and `0ccf0c0baef1d25546b0df94ef179a9bb93db62a`.
 - Not yet verified: Android build/CI, APK artifact, and device test. This is observability instrumentation, not a confirmed authorization fix.
 - Next: add/verify safe token-endpoint HTTP status breadcrumbs if possible; run Android CI on the exact branch head; inspect artifact and compile result; then install that build on the user's phone and run one login attempt. Use the copied trace to locate the first failed/missing stage before changing OAuth behavior.
+
+
+## Verification checkpoint — OAuth diagnostic branch (2026-10-09)
+
+- Branch head at this checkpoint: `126aafab640c066957104ee1620ec54665a15aee` (`ci(android): build OAuth diagnostic branch`).
+- Android CI runs were triggered for the diagnostic branch; at the last poll, build jobs were still in progress. Do not report build success until the run reaches a final conclusion and the artifact is checked.
+- Draft PR #11 targeting `main` was closed without merging because the source branch includes 45 commits / 10 changed files relative to `main`; avoid merging this broad history as part of the diagnostic task. The working branch remains based on the existing OAuth implementation branch.
+- Next: poll run `37953051552` (Android build) and the companion Android APK workflow; inspect job conclusions and uploaded APK artifact. If compilation fails, fix only the concrete diagnostic-code issue, then rerun CI. If green, test the diagnostic screen and one real authorization attempt on the phone.
