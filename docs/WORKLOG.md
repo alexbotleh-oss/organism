@@ -39,3 +39,15 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Status:** DONE for repository entry document. It has not been automatically inserted into ChatGPT Project Settings; user may need to copy its contents into the Project Instructions UI. The tracked file remains the source of truth if that setting is unavailable.
 - **Data safety:** no application database or user data touched.
 - **Next action:** update the continuity handoff to point to `PROJECT_INSTRUCTIONS.md`, then resume source inspection for imported-chat browsing/search.
+
+
+## 2026-10-09 — WL-004 — Require continuous progress checks and platform-first connector preference
+
+- **Lifecycle:** CHANGED → VERIFIED (documentation only).
+- **User requirement:** at every session, continuously compare what is done and what remains; where feasible, prefer the official ChatGPT/other AI platform web UI inside the app over API calls.
+- **Starting point:** branch `fix/zip-import-crash-and-archive-restore`; prior project-instructions commit `0780db0a81e003bc3cdbf99050e6b1b27bfb9868`; latest instruction file fetched before edit.
+- **Change:** updated root `PROJECT_INSTRUCTIONS.md` in commit `84526cc52919d487e42602c8994d4e2f69170c0e`. Added a mandatory planned/implemented/verified/device-confirmed progress check and platform-UI-first preference with explicit security, terms, reliability, usage-limit, and transparent-fallback constraints.
+- **Verification:** GitHub Contents API returned the update commit SHA. No application code changed; no build or device test run.
+- **Status:** DONE for documenting the preference and process. Platform UI connector itself is NOT IMPLEMENTED/NOT VERIFIED by this documentation change.
+- **Data safety:** no application database or user data touched.
+- **Next:** inspect current Android source and schema, then deliver imported conversation archive/search; in parallel or immediately after, inspect current connector implementation and assess a permitted official-platform WebView interaction path without bypassing access/usage controls.
