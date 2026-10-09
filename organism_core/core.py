@@ -534,7 +534,7 @@ class OrganismCore:
                     original_lines = source_row["raw_text"].splitlines(keepends=True)
                     line_index = int(raw_row["ordinal"]) - 1
                     if 0 <= line_index < len(original_lines):
-                        ending = "\\n" if original_lines[line_index].endswith("\\n") else ""
+                        ending = chr(10) if original_lines[line_index].endswith(chr(10)) else ""
                         original_lines[line_index] = "[REDACTED BY USER REQUEST]" + ending
                         conn.execute("UPDATE source_documents SET raw_text=? WHERE id=?",
                                      ("".join(original_lines), raw_row["source_id"]))
