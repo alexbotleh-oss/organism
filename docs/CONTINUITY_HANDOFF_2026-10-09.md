@@ -178,3 +178,14 @@ The build is verified; device behavior is not. Next action is install/test this 
 - Implementation decision still open: webhook plus receiver vs periodic polling; FCM/push is a candidate only. Android background execution alone is not a guaranteed always-on observer.
 - Safety: observing/reporting does not grant automatic permission to edit code, commit or perform destructive operations. This is a documented direction only; no application code, DB, credentials or user data changed; no tests/build/device test performed for this decision.
 - Current next step remains: check CI run 37955125073 for OAuth diagnostic commit 8396fc6b29661f14bbe80dd16fbb86f6a91b808f. Then define observer acceptance criteria and choose the initial GitHub monitoring method before implementation.
+
+
+## Handoff update — OAuth success confirmed on device (2026-10-09)
+
+- **Diagnostic build:** exact source commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f`; Android CI run `37955125073` passed and uploaded `organism-debug-apk` (11,348,423 bytes; SHA-256 `ea6cc90aa9e4c0d430063517fe9d413f62318b5ca5bb7dd85d5433d4f3dd029a`). Run: https://github.com/alexbotleh-oss/organism/actions/runs/37955125073.
+- **User's real-device trace at 20:41–20:42:** callback received; OAuth state matched; authorization code obtained; token endpoint HTTP 200; token exchange succeeded; ID-token signature/issuer/audience/expiration/nonce validated; required scope granted; credentials saved locally; `AUTH_COMPLETE | SUCCESS` recorded at 20:42:35.259.
+- **Confirmed:** this authorization attempt completed the OAuth handshake and persisted credentials on the phone. This is stronger than CI-only evidence and means we should not change the token exchange or redirect configuration speculatively.
+- **Still open:** user reports the browser kept spinning and they switched away after roughly three minutes. The trace proves app-side OAuth completion, but does not prove why the browser page's visual loading state persisted. A subsequent authenticated model/chat request has not been demonstrated by this trace.
+- **Data safety:** no database/archive reset, migration or credential deletion. Diagnostic log redacts secret values.
+- **Work log:** WL-015 appended to `docs/WORKLOG.md`.
+- **Next action:** inspect current post-auth UI and the authenticated-request path without clearing app data. Treat browser spinner/return UX as a separate issue; preserve the successful OAuth path unless new evidence identifies a defect.
