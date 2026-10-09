@@ -158,7 +158,7 @@ public class ImportPipeline {
         while((ch=reader.read())!=-1){char c=(char)ch;
             if(!started){if(c=='['){started=true;}continue;}
             if(closed)break;
-            if(inString){if(objectDepth>0)object.append(c);if(escaped)escaped=false;else if(c=='\\\\')escaped=true;else if(c=='"')inString=false;continue;}
+            if(inString){if(objectDepth>0)object.append(c);if(escaped)escaped=false;else if(c=='\\')escaped=true;else if(c=='"')inString=false;continue;}
             if(c=='"'){inString=true;if(objectDepth>0)object.append(c);continue;}
             if(c=='{' ){if(objectDepth==0)object.setLength(0);objectDepth++;object.append(c);continue;}
             if(objectDepth>0){object.append(c);if(c=='}'){objectDepth--;if(objectDepth==0){
