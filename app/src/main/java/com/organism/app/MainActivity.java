@@ -171,7 +171,7 @@ public class MainActivity extends Activity {
                     "FROM sources s LEFT JOIN memory_objects m ON m.source_id=s.id AND m.kind='CHAT_MESSAGE' " +
                     "WHERE s.source_type='CHAT_EXPORT_CONVERSATION' AND (?='' OR s.source_name LIKE ? OR EXISTS " +
                     "(SELECT 1 FROM memory_objects x WHERE x.source_id=s.id AND x.kind='CHAT_MESSAGE' AND x.content LIKE ?)) " +
-                    "GROUP BY s.id ORDER BY s.id DESC LIMIT 500",
+                    "GROUP BY s.id HAVING COUNT(m.id)>0 ORDER BY s.id DESC LIMIT 500",
                     new String[]{q,"%"+q+"%","%"+q+"%"});
                 while(c.moveToNext()){
                     long sourceId=c.getLong(0);String title=c.getString(1);String external=c.getString(2);
