@@ -226,7 +226,7 @@ public class ImportPipeline {
             Object part=parts.opt(i);
             if(part instanceof String)body.append((String)part);
             else if(part==null||part==JSONObject.NULL)body.append("[NULL PART]");
-            else body.append(JSONObject.valueToString(part));
+            else body.append(String.valueOf(part));
         }
         return body.toString();
     }
