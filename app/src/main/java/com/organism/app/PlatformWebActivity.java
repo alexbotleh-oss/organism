@@ -3,10 +3,12 @@ package com.organism.app;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.net.Uri;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -62,6 +64,19 @@ public class PlatformWebActivity extends Activity {
         actions.addView(close, new LinearLayout.LayoutParams(-2, -2));
         root.addView(actions, new LinearLayout.LayoutParams(-1, -2));
 
+        Button external = new Button(this);
+        external.setText("Открыть в браузере");
+        external.setAllCaps(false);
+        external.setOnClickListener(v -> openExternalBrowser());
+        root.addView(external, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView status = new TextView(this);
+        status.setText("Если поле ввода или отправка не работают здесь, откройте официальный сайт в браузере. Запрос и ответ передаются вручную.");
+        status.setTextColor(Color.rgb(75, 83, 96));
+        status.setTextSize(12);
+        status.setPadding(dp(12), dp(2), dp(12), dp(4));
+        root.addView(status, new LinearLayout.LayoutParams(-1, -2));
+
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -78,6 +93,15 @@ public class PlatformWebActivity extends Activity {
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void openExternalBrowser() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/"));
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Не удалось открыть браузер: " + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void previewPrompt() {
