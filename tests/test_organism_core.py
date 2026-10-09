@@ -51,18 +51,24 @@ class OrganismCoreTests(unittest.TestCase):
     def test_handoff_only_contains_verified_claims_and_matching_environment(self):
         good = self.core.add_claim(
             "Verified fact", project_id="P1", source_kind="artifact",
-            claim_status="active", verification_status="verified",
             environment={"python": "3.12"},
+        )
+        self.core.verify(
+            "claim", good, method="unit test", channel="test", outcome="verified",
+            description="Executed the relevant test suite", artifact_ref="tests/test_organism_core.py",
         )
         self.core.add_claim(
             "Unverified advice", project_id="P1", source_kind="model",
             claim_status="active", verification_status="unverified",
             environment={"python": "3.12"},
         )
-        self.core.add_claim(
+        different = self.core.add_claim(
             "Fact from different environment", project_id="P1", source_kind="artifact",
-            claim_status="active", verification_status="verified",
             environment={"python": "3.8"},
+        )
+        self.core.verify(
+            "claim", different, method="unit test", channel="test", outcome="verified",
+            description="Tested only on Python 3.8", artifact_ref="tests/test_organism_core.py",
         )
         result = self.core.build_handoff(
             project_id="P1", task="test handoff", environment={"python": "3.12"},
