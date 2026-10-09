@@ -262,3 +262,15 @@ The prior handoff said CI was pending because the first status helper returned n
 - **Verification boundary:** source change only so far. Android CI/build and actual device selection/cancellation are not yet verified. Do not tell the user it is fixed until device-tested.
 - **Data safety:** no database or user data modified; no archive re-import or reset.
 - **Next concrete action:** check CI for the latest head, then test selecting an image, selecting a document, and cancelling the picker on the existing app installation without clearing data.
+
+
+## Handoff — Dedicated ORGANISM web composer (2026-10-09)
+
+- **Latest UI source commit:** `855a31ede1491fffe3e403b90cbed679a2d5b0f2`, file `app/src/main/java/com/organism/app/PlatformWebActivity.java`.
+- **User-confirmed context:** the normal browser worked after the home internet connection was fixed; the embedded site itself now works but its usable area is cramped by the large app controls and keyboard.
+- **Implemented UI slice:** compact header, official ChatGPT Web in the central area, multiline ORGANISM composer at the bottom, keyboard resize mode, and prepared prompt prefill. Composer action copies the current text and explicitly states manual paste/send is still required.
+- **Not implemented:** automatic insertion into ChatGPT's page, Send triggering, response-completion detection, answer retrieval/import, unified model history. Do not imply these are complete.
+- **External browser button:** removed from this screen in favor of the composer. If external handoff is needed, add it as a compact overflow action rather than restoring a large strip.
+- **Verification:** no CI result or on-device keyboard/attachment test yet for this commit.
+- **Data safety:** no database/history/archive/credential reset or migration.
+- **Next action:** inspect CI for the latest branch head; if successful, test composer/keyboard/scroll and attachment chooser on phone without clearing existing data. Then implement only provider interaction that can be supported and reliably verified.
