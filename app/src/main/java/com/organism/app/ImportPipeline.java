@@ -138,10 +138,10 @@ public class ImportPipeline {
                 if(arrayDepth==0){closed=true;break;}
                 continue;
             }
-            if(arrayDepth==1&&c=='{'){
+            if(c=='{'&&(objectDepth>0||arrayDepth==1)){
                 if(objectDepth==0)objectStart=i;
                 objectDepth++;
-            }else if(arrayDepth==1&&c=='}'&&objectDepth>0){
+            }else if(c=='}'&&objectDepth>0){
                 objectDepth--;
                 if(objectDepth==0&&objectStart>=0){
                     handler.handle(json.substring(objectStart,i+1));
