@@ -146,3 +146,14 @@ The build is verified; device behavior is not. Next action is install/test this 
 - Android CI runs were triggered for the diagnostic branch; at the last poll, build jobs were still in progress. Do not report build success until the run reaches a final conclusion and the artifact is checked.
 - Draft PR #11 targeting `main` was closed without merging because the source branch includes 45 commits / 10 changed files relative to `main`; avoid merging this broad history as part of the diagnostic task. The working branch remains based on the existing OAuth implementation branch.
 - Next: poll run `37953051552` (Android build) and the companion Android APK workflow; inspect job conclusions and uploaded APK artifact. If compilation fails, fix only the concrete diagnostic-code issue, then rerun CI. If green, test the diagnostic screen and one real authorization attempt on the phone.
+
+
+## Handoff update — OAuth diagnostic APK build passed (2026-10-09)
+
+- Exact branch head: `fix/oauth-diagnostic-trace-20261009`, commit `6d5fd748260fedaa5bff5fc9a66b82c6c5246a8b`.
+- Android CI run `37953256844` completed successfully, including `Build debug APK` and `Upload debug APK`: https://github.com/alexbotleh-oss/organism/actions/runs/37953256844.
+- Artifact `organism-debug-apk` is available and not expired (11,348,150 bytes). Artifact ZIP URL: https://api.github.com/repos/alexbotleh-oss/organism/actions/artifacts/11626284579/zip; GitHub may require authentication.
+- The earlier Java compilation regression caused by literal escaped newline separators was corrected; this exact commit is now green. Keep the failure history in the work log; do not rewrite it as if the first build passed.
+- **Boundary:** this verifies CI compilation and upload only. The APK has not yet been installed/tested on a real phone; OAuth success is not established.
+- **Next step:** install this exact artifact, open Settings → “Журнал диагностики авторизации”, perform one login attempt, copy the trace, and inspect the first missing/failed stage before changing OAuth behavior. Do not clear app data or touch the existing DB/archive. Never share a trace containing tokens, authorization codes, cookies or passwords; the implemented trace is intended to redact these.
+- Detailed stage record: WL-012 in `docs/WORKLOG.md`.
