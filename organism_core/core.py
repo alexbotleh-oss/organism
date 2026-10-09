@@ -302,7 +302,8 @@ class OrganismCore:
         return {"source_id": source_id, "sha256": digest, "segment_ids": segment_ids, "segments": len(segment_ids)}
 
     def import_legacy_snapshot(self, snapshot: dict[str, Any], *,
-                               source_name: str = "organism-pwa-export.json") -> dict[str, Any]:
+                               source_name: str = "organism-pwa-export.json",
+                               raw_text: str | None = None) -> dict[str, Any]:
         """Migrate the existing PWA JSON export without deleting or silently trusting it.
 
         The entire JSON snapshot is preserved as RAW. Mappable entities are copied into
@@ -312,7 +313,7 @@ class OrganismCore:
         if not isinstance(snapshot, dict):
             raise ValueError("Legacy export must be a JSON object")
         raw = self.import_text(
-            source_name, _json(snapshot), source_kind="legacy_pwa_json",
+            source_name, raw_text if raw_text is not None else _json(snapshot), source_kind="legacy_pwa_json",
             completeness="declared_complete",
             metadata={"migration": "PWA-v0.1-to-CORE-v0.4"},
         )
