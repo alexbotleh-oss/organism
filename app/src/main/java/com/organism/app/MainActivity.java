@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
     static final int CALLBACK_PORT_HINT=1455;
 
     Db db; ImportPipeline importer; ReflexEngine reflex=new ReflexEngine(); ContextEngine contextEngine; ExperienceEngine experienceEngine; long activeSessionId=0;
-    LinearLayout root,content; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner; ScrollView chatScroll; HorizontalScrollView navScroll;
+    LinearLayout root,content; ScrollView contentScroll; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner; ScrollView chatScroll; HorizontalScrollView navScroll;
     Handler main=new Handler(Looper.getMainLooper()); boolean busy=false; String screen="home";
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model=""; long expiresAt=0;
@@ -45,68 +45,88 @@ public class MainActivity extends Activity {
     int dp(float value){return (int)(value*getResources().getDisplayMetrics().density+0.5f);}
     GradientDrawable rounded(int color,float radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
     TextView tv(String s,int z,int c){TextView v=new TextView(this);v.setText(s);v.setTextSize(z);v.setTextColor(c);v.setPadding(dp(10),dp(8),dp(10),dp(8));return v;}
-    Button bt(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(Color.rgb(31,61,112));b.setTextSize(14);b.setPadding(dp(12),dp(8),dp(12),dp(8));b.setMinHeight(dp(46));b.setBackground(rounded(Color.rgb(232,239,252),16));return b;}
+    Button bt(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(Color.rgb(31,61,112));b.setTextSize(14);b.setPadding(dp(12),dp(8),dp(12),dp(8));b.setMinHeight(dp(46));b.setBackground(rounded(Color.rgb(231,238,251),15));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);return b;}
     void buildShell(){
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(245,247,251)); ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());androidx.core.graphics.Insets ime=insets.getInsets(WindowInsetsCompat.Type.ime());boolean keyboard=insets.isVisible(WindowInsetsCompat.Type.ime());v.setPadding(0,bars.top,0,keyboard?ime.bottom:bars.bottom);if(navScroll!=null)navScroll.setVisibility(keyboard?View.GONE:View.VISIBLE);return insets;});
-        LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(18,12,18,8);
-        screenTitle=tv("ОРГАНИЗМ",23,Color.rgb(16,24,39));top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));
-        status=tv(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён",12,Color.DKGRAY);top.addView(status);
-        Button quick=bt("⋮");quick.setContentDescription("Быстрые действия");quick.setOnClickListener(v->showQuickMenu());top.addView(quick,new LinearLayout.LayoutParams(48,48));
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(242,245,250));
+        ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());androidx.core.graphics.Insets ime=insets.getInsets(WindowInsetsCompat.Type.ime());boolean keyboard=insets.isVisible(WindowInsetsCompat.Type.ime());v.setPadding(0,bars.top,0,keyboard?ime.bottom:bars.bottom);if(navScroll!=null)navScroll.setVisibility(keyboard?View.GONE:View.VISIBLE);return insets;});
+        LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(dp(16),dp(10),dp(12),dp(8));top.setBackgroundColor(Color.rgb(255,255,255));
+        LinearLayout brand=new LinearLayout(this);brand.setOrientation(LinearLayout.VERTICAL);brand.setGravity(Gravity.CENTER_VERTICAL);
+        screenTitle=tv("ОРГАНИЗМ",21,Color.rgb(16,24,39));screenTitle.setTypeface(null,android.graphics.Typeface.BOLD);screenTitle.setPadding(0,0,0,0);
+        TextView subtitle=tv("ПАМЯТЬ · ОПЫТ · НЕПРЕРЫВНОСТЬ",9,Color.rgb(91,108,133));subtitle.setPadding(0,dp(2),0,0);
+        brand.addView(screenTitle);brand.addView(subtitle);top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
+        status=tv(hasCreds()?"● ChatGPT подключён":"● локальный режим",11,hasCreds()?Color.rgb(25,130,90):Color.rgb(91,108,133));status.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(status);
+        Button quick=bt("•••");quick.setContentDescription("Дополнительные разделы");quick.setOnClickListener(v->showQuickMenu());top.addView(quick,new LinearLayout.LayoutParams(dp(44),dp(44)));
         root.addView(top);
-        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(14),dp(4),dp(14),dp(16));
-        ScrollView scroll=new ScrollView(this);scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
-        String[][] items={{"Главная","home"},{"Чат","chat"},{"Память","memory"},{"Импорт","import"},{"База","database"},{"Настройки","settings"}};
-        for(String[] it:items){Button b=bt(it[0]);b.setOnClickListener(v->navigate(it[1]));nav.addView(b,new LinearLayout.LayoutParams(150,58));}
-        navScroll.addView(nav);root.addView(navScroll);setContentView(root);
+        View separator=new View(this);separator.setBackgroundColor(Color.rgb(225,231,240));root.addView(separator,new LinearLayout.LayoutParams(-1,dp(1)));
+        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(16),dp(12),dp(16),dp(20));
+        contentScroll=new ScrollView(this);contentScroll.setFillViewport(true);contentScroll.setClipToPadding(false);contentScroll.addView(content);root.addView(contentScroll,new LinearLayout.LayoutParams(-1,0,1));
+        navScroll=new HorizontalScrollView(this);navScroll.setHorizontalScrollBarEnabled(false);navScroll.setBackgroundColor(Color.WHITE);
+        LinearLayout nav=new LinearLayout(this);nav.setGravity(Gravity.CENTER_VERTICAL);nav.setPadding(dp(5),dp(5),dp(5),dp(5));
+        String[][] items={{"⌂  Главная","home"},{"◉  Чат","chat"},{"✳  Память","memory"},{"⇧  Импорт","import"},{"•••  Ещё","more"}};
+        for(String[] it:items){Button b=bt(it[0]);b.setTextSize(11);b.setMinHeight(dp(48));b.setPadding(dp(2),dp(4),dp(2),dp(4));b.setBackground(rounded(Color.rgb(255,255,255),12));b.setTextColor(Color.rgb(48,65,91));b.setOnClickListener(v->navigate(it[1]));nav.addView(b,new LinearLayout.LayoutParams(0,dp(50),1));}
+        navScroll.addView(nav,new HorizontalScrollView.LayoutParams(-1,-2));root.addView(navScroll);setContentView(root);
     }
-    void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else showSettings();}
-    void clear(String title){screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
-    void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(14),dp(12),dp(14),dp(12));box.setBackground(rounded(Color.WHITE,18));box.setElevation(dp(2));TextView h=tv(title,18,Color.rgb(20,29,44));h.setTypeface(null,android.graphics.Typeface.BOLD);box.addView(h);TextView t=tv(body,14,Color.rgb(55,63,77));t.setLineSpacing(dp(2),1.0f);box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(12));content.addView(box,p);}
+    void navigate(String s){if("home".equals(s))showHome();else if("chat".equals(s))showChat();else if("memory".equals(s))showMemory();else if("import".equals(s))showImport();else if("database".equals(s))showDatabase();else if("more".equals(s))showQuickMenu();else showSettings();}
+    void clear(String title){if("chat".equals(screen))deactivateChatLayout();screen=title;content.removeAllViews();screenTitle.setText(title);status.setText(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён");}
+    void card(String title,String body){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(16),dp(15),dp(16),dp(15));box.setBackground(rounded(Color.WHITE,20));box.setElevation(dp(1));TextView h=tv(title,17,Color.rgb(20,32,52));h.setTypeface(null,android.graphics.Typeface.BOLD);h.setPadding(0,0,0,dp(5));box.addView(h);TextView t=tv(body,14,Color.rgb(69,81,101));t.setLineSpacing(dp(3),1.0f);t.setPadding(0,0,0,0);box.addView(t);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(14));content.addView(box,p);}
+    void activateChatLayout(){if(content.getParent()==contentScroll){contentScroll.removeView(content);root.removeView(contentScroll);root.addView(content,2,new LinearLayout.LayoutParams(-1,0,1));}content.setPadding(dp(12),dp(6),dp(12),dp(8));}
+    void deactivateChatLayout(){if(content.getParent()==root){root.removeView(content);content.setPadding(dp(16),dp(12),dp(16),dp(20));contentScroll.addView(content);root.addView(contentScroll,2,new LinearLayout.LayoutParams(-1,0,1));}}
     void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);Button quickSettings=bt("Настройки и экспорт базы");quickSettings.setOnClickListener(v->showSettings());content.addView(quickSettings);}
     void showQuickMenu(){
-        String[] labels={"Чат","Память","Задачи","Источники","Опыт","Проверка импорта","Импорт","Настройки","Экспорт базы"};
-        Runnable[] actions={()->showChat(),()->showMemory(),()->showTasks(),()->showSources(),()->showExperience(),()->showImportAudit(),()->showImport(),()->showSettings(),()->backup()};
-        new AlertDialog.Builder(this).setTitle("ORGANISM — быстрые действия").setItems(labels,(dialog,which)->actions[which].run()).show();
+        String[] labels={"Подключить / переподключить ChatGPT","Новый диалог","Копировать текущий диалог","Старая общая история","Context Snapshot","Память","Архив импортированных чатов","Задачи","Источники","Опыт","Проверка импорта","Импорт","База данных","Настройки","Экспорт полного архива"};
+        Runnable[] actions={()->signIn(),()->startNewChat(),()->copyText("История чата",db.chat(activeSessionId)),()->showLegacyChat(),()->showContextDialog(),()->showMemory(),()->showImportedChatArchive(),()->showTasks(),()->showSources(),()->showExperience(),()->showImportAudit(),()->showImport(),()->showDatabase(),()->showSettings(),()->backup()};
+        new AlertDialog.Builder(this).setTitle("ORGANISM · Дополнительные функции").setItems(labels,(dialog,which)->actions[which].run()).show();
     }
     long ensureActiveSession(){String key=getPrefs().getString("active_session_key","");if(key.isEmpty()){key="SES-"+UUID.randomUUID().toString();getPrefs().edit().putString("active_session_key",key).apply();}return db.ensureSession(key,db.project("ORGANISM"));}
     void startNewChat(){if(busy){toast("Дождитесь завершения текущего запроса.");return;}String key="SES-"+UUID.randomUUID().toString();getPrefs().edit().putString("active_session_key",key).apply();activeSessionId=ensureActiveSession();showChat();}
     void showLegacyChat(){TextView t=tv(db.legacyChat(),14,Color.rgb(30,36,48));t.setTextIsSelectable(true);ScrollView s=new ScrollView(this);s.addView(t);new AlertDialog.Builder(this).setTitle("Старая общая история").setView(s).setPositiveButton("Закрыть",null).show();}
     void showChat(){
         clear("Чат");
-        card("Контур","Вопрос сначала проходит через Context Engine и рефлексы, затем отправляется выбранной модели. Ответ сохраняется как событие, память и кандидат опыта.");
-        card("Подключение","Агент: ORGANISM\nChatGPT: "+getPrefs().getString("email","не определён")+"\nМодель выбирается ниже.");
-        LinearLayout row=new LinearLayout(this);
-        row.addView(tv("Модель",14,Color.DKGRAY),new LinearLayout.LayoutParams(0,-2,.25f));
+        activateChatLayout();
+        // Chat is a full-screen workspace: the history takes all free height,
+        // the composer stays at the bottom, and secondary actions live in the ••• menu.
+        LinearLayout modelRow=new LinearLayout(this);
+        modelRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView modelLabel=tv("Модель",14,Color.rgb(69,81,101));
+        modelRow.addView(modelLabel,new LinearLayout.LayoutParams(dp(72),-2));
         modelSpinner=new Spinner(this);
-        row.addView(modelSpinner,new LinearLayout.LayoutParams(0,-2,.75f));
-        content.addView(row);
+        modelRow.addView(modelSpinner,new LinearLayout.LayoutParams(0,-2,1));
+        content.addView(modelRow,new LinearLayout.LayoutParams(-1,-2));
+
         chatScroll=new ScrollView(this);
+        chatScroll.setFillViewport(true);
+        chatScroll.setClipToPadding(false);
         chatView=tv(db.chat(activeSessionId),14,Color.rgb(30,36,48));
         chatView.setTextIsSelectable(true);
-        chatView.setPadding(14,14,14,14);
-        chatView.setBackgroundColor(Color.WHITE);
+        chatView.setPadding(dp(14),dp(12),dp(14),dp(12));
+        chatView.setBackground(rounded(Color.WHITE,18));
         chatScroll.addView(chatView,new ScrollView.LayoutParams(-1,-2));
-        LinearLayout.LayoutParams chatParams=new LinearLayout.LayoutParams(-1,0,1f);
-        chatParams.setMargins(0,8,0,8);
-        content.addView(chatScroll,chatParams);
-        Button copyChat=bt("Копировать текущий диалог");
-        copyChat.setOnClickListener(v->copyText("История чата",db.chat(activeSessionId)));
-        content.addView(copyChat);
-        Button newChat=bt("Начать новый диалог");newChat.setOnClickListener(v->startNewChat());content.addView(newChat);
-        Button oldChat=bt("Показать старую общую историю");oldChat.setOnClickListener(v->showLegacyChat());content.addView(oldChat);
+        LinearLayout.LayoutParams historyParams=new LinearLayout.LayoutParams(-1,0,1f);
+        historyParams.setMargins(0,dp(6),0,dp(8));
+        content.addView(chatScroll,historyParams);
+
+        LinearLayout composer=new LinearLayout(this);
+        composer.setOrientation(LinearLayout.VERTICAL);
+        composer.setBackground(rounded(Color.WHITE,20));
+        composer.setPadding(dp(10),dp(5),dp(10),dp(8));
         chatInput=new EditText(this);
         chatInput.setHint("Напишите запрос…");
-        chatInput.setMinLines(2);
-        chatInput.setGravity(Gravity.TOP);
-        content.addView(chatInput);
+        chatInput.setMinLines(1);
+        chatInput.setMaxLines(5);
+        chatInput.setGravity(Gravity.TOP|Gravity.START);
+        chatInput.setTextSize(16);
+        chatInput.setBackgroundColor(Color.TRANSPARENT);
+        composer.addView(chatInput,new LinearLayout.LayoutParams(-1,-2));
         Button send=bt("Отправить через ORGANISM → GPT");
         send.setOnClickListener(v->send());
-        content.addView(send);
-        Button ctx=bt("Показать и скопировать Context Snapshot");
-        ctx.setOnClickListener(v->showContextDialog());
-        content.addView(ctx);
-        if(hasCreds())loadModels();else card("ChatGPT","Подключите аккаунт, чтобы использовать модель. Импорт и база работают локально без подключения.");
+        composer.addView(send,new LinearLayout.LayoutParams(-1,-2));
+        content.addView(composer,new LinearLayout.LayoutParams(-1,-2));
+        if(hasCreds())loadModels();
+        else{
+            TextView local=tv("ORGANISM работает локально. Подключите ChatGPT через меню •••, чтобы отправлять запросы модели.",13,Color.rgb(91,108,133));
+            content.addView(local,new LinearLayout.LayoutParams(-1,-2));
+        }
     }
     void showContextDialog(){
         String snapshot=contextEngine.build(chatInput==null?"":chatInput.getText().toString(),activeSessionId);
@@ -129,7 +149,67 @@ public class MainActivity extends Activity {
     void showExperience(){clear("Опыт");card("Experience","Опыт не является догмой. Он хранит what happened / tried / worked / failed, confidence и applicability.");content.addView(tv(db.recent("experiences"),13,Color.DKGRAY));}
     void showSources(){clear("Источники");card("Provenance","RAW сохраняется отдельно. Каждый импорт получает source record и checksum.");content.addView(tv(db.recent("sources"),13,Color.DKGRAY));}
     void showTasks(){clear("Задачи");card("Задачи","DONE не устанавливается автоматически как подтверждённое завершение.");content.addView(tv(db.recent("tasks"),13,Color.DKGRAY));}
-    void showImport(){clear("Импорт");card("Источник → RAW → разбор → объекты → связи","Поддерживаются TXT, Markdown, PDF, URL, ChatGPT ZIP и вставленный текст. RAW сохраняется в app-private storage, provenance — в sources.");Button audit=bt("🔎 Проверить, что импортировано");audit.setOnClickListener(v->showImportAudit());content.addView(audit);Button file=bt("📄 Выбрать TXT / MD / PDF / ZIP");file.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,700);});content.addView(file);Button url=bt("🔗 Импортировать по ссылке");url.setOnClickListener(v->urlDialog());content.addView(url);Button paste=bt("📋 Вставить текст");paste.setOnClickListener(v->pasteDialog());content.addView(paste);Button info=bt("Что сохраняется");info.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Pipeline").setMessage("RAW\n↓\nИсточник + checksum + provenance\n↓\nСобытия\n↓\nMemory Objects + facets\n↓\nRelations\n↓\nContext Engine\n↓\nGPT\n↓\nExperience / change history").setPositiveButton("OK",null).show());content.addView(info);}
+    void showImport(){clear("Импорт данных");card("История чатов ChatGPT","Выберите ZIP, скачанный через экспорт данных ChatGPT. Импорт выполняется потоком, чтобы большой архив не загружал целиком оперативную память телефона. Исходный ZIP сохраняется в RAW.");Button file=bt("Выбрать ZIP с историей ChatGPT");file.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("application/zip");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"application/zip","application/x-zip-compressed","application/octet-stream"});startActivityForResult(i,700);});content.addView(file,new LinearLayout.LayoutParams(-1,-2));Button other=bt("Импортировать TXT / MD / PDF");other.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,701);});content.addView(other,new LinearLayout.LayoutParams(-1,-2));Button archive=bt("Открыть архив импортированных чатов");archive.setOnClickListener(v->showImportedChatArchive());content.addView(archive,new LinearLayout.LayoutParams(-1,-2));Button audit=bt("Проверить результат импорта");audit.setOnClickListener(v->showImportAudit());content.addView(audit,new LinearLayout.LayoutParams(-1,-2));Button url=bt("Импортировать по ссылке");url.setOnClickListener(v->urlDialog());content.addView(url,new LinearLayout.LayoutParams(-1,-2));Button paste=bt("Вставить текст");paste.setOnClickListener(v->pasteDialog());content.addView(paste,new LinearLayout.LayoutParams(-1,-2));Button info=bt("Как работает импорт");info.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Безопасный импорт").setMessage("1. Исходный файл сохраняется отдельно.\n2. ZIP читается потоком, без загрузки всего архива в память.\n3. Беседы разбираются по одной.\n4. Сообщения сохраняются с источником и структурными связями.\n5. Результат можно проверить в аудите импорта.").setPositiveButton("Понятно",null).show());content.addView(info,new LinearLayout.LayoutParams(-1,-2));}
+    void showImportedChatArchive(){
+        clear("Архив чатов");
+        card("Импортированные разговоры","Это архив исходных разговоров ChatGPT, отдельно от новых диалогов ORGANISM. Поиск выполняется по названию и тексту сообщений; исходники и связи с источником не меняются.");
+        EditText search=new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("Найти разговор или фразу");
+        content.addView(search,new LinearLayout.LayoutParams(-1,-2));
+        Button find=bt("Найти");
+        content.addView(find,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout results=new LinearLayout(this);results.setOrientation(LinearLayout.VERTICAL);
+        content.addView(results,new LinearLayout.LayoutParams(-1,-2));
+        Runnable load=()->{
+            results.removeAllViews();
+            String q=search.getText()==null?"":search.getText().toString().trim();
+            android.database.Cursor c=null;
+            int shown=0;
+            try{
+                c=db.query("SELECT s.id,s.source_name,COALESCE(s.external_id,''),COUNT(m.id),COALESCE(MAX(m.created_at),'') " +
+                    "FROM sources s LEFT JOIN memory_objects m ON m.source_id=s.id AND m.kind='CHAT_MESSAGE' " +
+                    "WHERE s.source_type='CHAT_EXPORT_CONVERSATION' AND (?='' OR s.source_name LIKE ? OR EXISTS " +
+                    "(SELECT 1 FROM memory_objects x WHERE x.source_id=s.id AND x.kind='CHAT_MESSAGE' AND x.content LIKE ?)) " +
+                    "GROUP BY s.id HAVING COUNT(m.id)>0 ORDER BY s.id DESC LIMIT 500",
+                    new String[]{q,"%"+q+"%","%"+q+"%"});
+                while(c.moveToNext()){
+                    long sourceId=c.getLong(0);String title=c.getString(1);String external=c.getString(2);
+                    int count=c.getInt(3);
+                    Button item=bt(title+"\n"+count+" сообщений"+(external.isEmpty()?"":" · ID "+external));
+                    item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+                    item.setOnClickListener(v->openImportedConversation(sourceId,title,count));
+                    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(3),0,dp(3));results.addView(item,lp);shown++;
+                }
+            }catch(Exception e){results.addView(tv("Ошибка чтения архива: "+e.getMessage(),13,Color.RED));}
+            finally{if(c!=null)c.close();}
+            if(shown==0)results.addView(tv(q.isEmpty()?"Импортированные разговоры пока не найдены. Проверьте результат импорта.":"Совпадений нет.",13,Color.rgb(91,108,133)));
+            else results.addView(tv("Показано: "+shown+" (максимум 500).",11,Color.rgb(91,108,133)));
+        };
+        find.setOnClickListener(v->load.run());
+        load.run();
+    }
+    void openImportedConversation(long sourceId,String title,int messageCount){
+        StringBuilder transcript=new StringBuilder();
+        android.database.Cursor c=null;int shown=0;boolean more=false;
+        try{
+            c=db.query("SELECT title,content FROM memory_objects WHERE source_id=? AND kind='CHAT_MESSAGE' ORDER BY id ASC LIMIT 3001",new String[]{Long.toString(sourceId)});
+            while(c.moveToNext()){
+                if(shown>=3000){more=true;break;}
+                if(transcript.length()>0)transcript.append("\n\n────────────────────\n\n");
+                transcript.append(c.getString(0)).append("\n").append(c.getString(1));shown++;
+            }
+        }catch(Exception e){transcript.append("Ошибка чтения разговора: ").append(e.getMessage());}
+        finally{if(c!=null)c.close();}
+        if(more)transcript.append("\n\n[Показаны первые 3000 сообщений; в базе могут быть дополнительные сообщения.]");
+        TextView body=tv(transcript.length()==0?"Сообщения не найдены.":transcript.toString(),13,Color.rgb(30,36,48));
+        body.setTextIsSelectable(true);body.setPadding(dp(16),dp(12),dp(16),dp(12));
+        ScrollView scroll=new ScrollView(this);scroll.addView(body);
+        scroll.setFillViewport(false);
+        new AlertDialog.Builder(this).setTitle(title+" · "+shown+" сообщений").setView(scroll)
+            .setPositiveButton("Закрыть",null).setNeutralButton("Копировать",(d,w)->copyText(title,transcript.toString())).show();
+    }
+
     void showImportAudit(){
         clear("Проверка импорта");
         card("Контроль импорта чатов","Здесь показываются реальные записи SQLite, а не только сообщение об успешном импорте. Сравните количество узлов и сообщений с исходным экспортом.");
@@ -189,7 +269,8 @@ public class MainActivity extends Activity {
     }
     void urlDialog(){EditText e=new EditText(this);e.setHint("https://…");new AlertDialog.Builder(this).setTitle("Импорт URL").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Импортировать",(d,w)->{String u=e.getText().toString().trim();if(!u.isEmpty())importer.importUrl(u,new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
     void pasteDialog(){EditText e=new EditText(this);e.setMinLines(10);e.setGravity(Gravity.TOP);new AlertDialog.Builder(this).setTitle("Вставить текст").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Сохранить",(d,w)->{importer.importText("Вставленный текст",e.getText().toString(),new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
-    @Override protected void onActivityResult(int req,int res,Intent data){super.onActivityResult(req,res,data);if(req==700&&res==RESULT_OK&&data!=null&&data.getData()!=null)importer.importUri(data.getData(),new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showImportAudit();});}public void fail(String m){main.post(()->toast("Ошибка импорта: "+m));}});}
+    @Override protected void onActivityResult(int req,int res,Intent data){super.onActivityResult(req,res,data);if((req==700||req==701)&&res==RESULT_OK&&data!=null&&data.getData()!=null){final Uri uri=data.getData();try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}cardImportProgress();importer.importUri(uri,new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showImportAudit();});}public void fail(String m){main.post(()->new AlertDialog.Builder(MainActivity.this).setTitle("Импорт не завершён").setMessage(m+"\n\nИсходный файл не удалён. Можно повторить импорт или прислать этот текст ошибки.").setPositiveButton("Понятно",null).show());}});}} 
+    void cardImportProgress(){clear("Импорт выполняется");card("Обрабатываем архив","Не закрывайте приложение. Большие истории могут обрабатываться несколько минут. Исходный файл не изменяется.");}
     void showSettings(){clear("Настройки");card("ChatGPT","Sign in with ChatGPT. API key не нужен. Доступ к чатам ChatGPT не предоставляется: ORGANISM ведёт собственную историю и базу.");Button c=bt(hasCreds()?"Переподключить":"Подключить ChatGPT");c.setOnClickListener(v->signIn());content.addView(c);Button out=bt("Выйти из ChatGPT");out.setOnClickListener(v->{clearCreds();showSettings();});content.addView(out);Button archive=bt("Экспорт полного архива (чаты + память + файлы)");archive.setOnClickListener(v->backupArchive());content.addView(archive);Button backup=bt("Экспорт только базы SQLite");backup.setOnClickListener(v->backup());content.addView(backup);card("Переносимость","Полный архив содержит SQLite и внутренние файлы RAW/событий. Экспорт уже реализуется как единый пакет; восстановление архива на другом устройстве будет отдельным проверяемым шагом.");card("Защита","Удаление памяти проходит через рефлекс защиты; RAW и события не заменяются кратким резюме. Удаление критической памяти автоматически не каскадирует связи.");}
     void backup(){if(busy){toast("Сначала дождитесь завершения текущего запроса.");return;}try{File f=new File(getExternalFilesDir(null),"organism-backup.db");copyDb(f);Intent i=new Intent(Intent.ACTION_SEND);i.setType("application/octet-stream");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);i.putExtra(Intent.EXTRA_STREAM,FileProvider.getUriForFile(this,getPackageName()+".files",f));startActivity(Intent.createChooser(i,"Передать резервную копию"));}catch(Exception e){toast("Резервная копия не создана: "+e.getMessage());}}
     void backupArchive(){if(busy){toast("Сначала дождитесь завершения текущего запроса.");return;}try{File base=new File(getExternalFilesDir(null),"organism-full-archive");if(!base.exists()&&!base.mkdirs())throw new IOException("Не удалось создать каталог архива");File database=new File(base,"organism.db");copyDb(database);File zip=new File(getExternalFilesDir(null),"organism-full-archive.zip");try(ZipOutputStream out=new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zip)))){putZipFile(out,database,"database/organism.db");File privateFiles=getFilesDir();zipDirectory(out,privateFiles,"app-files/");String manifest="ORGANISM PORTABLE ARCHIVE\nformat_version=1\ncreated_at="+db.now()+"\ndatabase=database/organism.db\napp_private_files=app-files/\ncontents=SQLite database (events, sources, memory, experiences, relations, imported chat messages), plus app-private RAW files, events.jsonl and PROJECT_MEMORY.md when present.\nNOTE=This archive is a data export. Safe restore/import on another device must validate schema and integrity before replacing any existing data.\n";out.putNextEntry(new ZipEntry("ARCHIVE_MANIFEST.txt"));out.write(manifest.getBytes(StandardCharsets.UTF_8));out.closeEntry();}android.database.sqlite.SQLiteDatabase check=android.database.sqlite.SQLiteDatabase.openDatabase(database.getAbsolutePath(),null,android.database.sqlite.SQLiteDatabase.OPEN_READONLY);try{android.database.Cursor c=check.rawQuery("PRAGMA integrity_check",null);try{if(!c.moveToFirst()||!"ok".equalsIgnoreCase(c.getString(0)))throw new IOException("Проверка SQLite не пройдена");}finally{c.close();}}finally{check.close();}Intent i=new Intent(Intent.ACTION_SEND);i.setType("application/zip");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);i.putExtra(Intent.EXTRA_STREAM,FileProvider.getUriForFile(this,getPackageName()+".files",zip));startActivity(Intent.createChooser(i,"Передать полный архив ORGANISM"));}catch(Exception e){toast("Полный архив не создан: "+e.getMessage());}}
@@ -221,7 +302,7 @@ public class MainActivity extends Activity {
                 if(req==null||!req.startsWith("GET "))throw new Exception("Loopback callback: неверный HTTP-запрос");
                 String[] requestParts=req.split(" ");
                 if(requestParts.length<2)throw new Exception("Loopback callback: отсутствует путь");
-                String path=requestParts[1];String body="<html><body><h3>ОРГАНИЗМ</h3>Авторизация завершена. Вернитесь в приложение.</body></html>";byte[] bb=body.getBytes(StandardCharsets.UTF_8);OutputStream os=s.getOutputStream();os.write(("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: "+bb.length+"\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.UTF_8));os.write(bb);os.flush();s.close();try{localSocket.close();}catch(Exception ignored){}callbackSocket=null;Uri cb=Uri.parse("http://127.0.0.1"+path);if(!pendingState.equals(cb.getQueryParameter("state")))throw new Exception("OAuth state не совпал");if(cb.getQueryParameter("error")!=null)throw new Exception("Авторизация отменена: "+cb.getQueryParameter("error"));String code=cb.getQueryParameter("code");if(code==null)throw new Exception("OAuth code отсутствует");String issued=cb.getQueryParameter("client_id");if("dynamic_agent_client".equals(client)){if(issued==null||issued.isEmpty())throw new Exception("OpenAI не вернул выданный client_id");client=issued;getPrefs().edit().putString("client_id",client).apply();}JSONObject tok=postForm(TOKEN,new String[][]{{"grant_type","authorization_code"},{"client_id",client},{"code",code},{"code_verifier",pendingVerifier},{"redirect_uri",pendingRedirect},{"resource",RESOURCE}});idToken=tok.optString("id_token","");if(idToken.isEmpty())throw new Exception("ID token отсутствует");verifyIdToken(idToken,client,pendingNonce);if(!tok.optString("scope","").contains("chatgpt.tokens.use.direct"))throw new Exception("Разрешение chatgpt.tokens.use.direct не выдано этому аккаунту");accessToken=tok.getString("access_token");refreshToken=tok.optString("refresh_token","");expiresAt=System.currentTimeMillis()/1000+tok.optLong("expires_in",3600);JSONObject p=jwtPart(idToken,1);getPrefs().edit().putString("id_token_hint",idToken).putString("email",p.optString("email","")).apply();saveCreds();main.post(()->{busy=false;toast("ChatGPT подключён");showChat();});}catch(Exception e){try{if(callbackSocket!=null)callbackSocket.close();}catch(Exception ignored){}callbackSocket=null;busy=false;main.post(()->toast("Подключение: "+(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage())));}}).start();}
+                String path=requestParts[1];String body="<!doctype html><html lang=\"ru\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>ОРГАНИЗМ</title><body style=\"font:16px sans-serif;padding:24px;line-height:1.5\"><h3>ОРГАНИЗМ</h3><p>Ответ авторизации получен. Возвращаемся в приложение…</p><p>Если приложение не открылось автоматически, нажмите кнопку ниже.</p><a id=\"back\" href=\"intent://oauth-return#Intent;scheme=organism;package=com.organism.app;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;launchFlags=0x10000000;end\" style=\"display:inline-block;padding:12px 18px;background:#176b50;color:white;border-radius:8px;text-decoration:none\">Вернуться в ОРГАНИЗМ</a><script>setTimeout(function(){window.location.href=document.getElementById('back').href;},250);</script></body></html>";byte[] bb=body.getBytes(StandardCharsets.UTF_8);OutputStream os=s.getOutputStream();os.write(("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: "+bb.length+"\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.UTF_8));os.write(bb);os.flush();s.close();try{localSocket.close();}catch(Exception ignored){}callbackSocket=null;Uri cb=Uri.parse("http://127.0.0.1"+path);if(!pendingState.equals(cb.getQueryParameter("state")))throw new Exception("OAuth state не совпал");if(cb.getQueryParameter("error")!=null)throw new Exception("Авторизация отменена: "+cb.getQueryParameter("error"));String code=cb.getQueryParameter("code");if(code==null)throw new Exception("OAuth code отсутствует");String issued=cb.getQueryParameter("client_id");if("dynamic_agent_client".equals(client)){if(issued==null||issued.isEmpty())throw new Exception("OpenAI не вернул выданный client_id");client=issued;getPrefs().edit().putString("client_id",client).apply();}JSONObject tok=postForm(TOKEN,new String[][]{{"grant_type","authorization_code"},{"client_id",client},{"code",code},{"code_verifier",pendingVerifier},{"redirect_uri",pendingRedirect},{"resource",RESOURCE}});idToken=tok.optString("id_token","");if(idToken.isEmpty())throw new Exception("ID token отсутствует");verifyIdToken(idToken,client,pendingNonce);if(!tok.optString("scope","").contains("chatgpt.tokens.use.direct"))throw new Exception("Разрешение chatgpt.tokens.use.direct не выдано этому аккаунту");accessToken=tok.getString("access_token");refreshToken=tok.optString("refresh_token","");expiresAt=System.currentTimeMillis()/1000+tok.optLong("expires_in",3600);JSONObject p=jwtPart(idToken,1);getPrefs().edit().putString("id_token_hint",idToken).putString("email",p.optString("email","")).apply();saveCreds();main.post(()->{busy=false;toast("ChatGPT подключён");showChat();});}catch(Exception e){try{if(callbackSocket!=null)callbackSocket.close();}catch(Exception ignored){}callbackSocket=null;busy=false;main.post(()->toast("Подключение: "+(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage())));}}).start();}
     void verifyIdToken(String jwt,String client,String nonce)throws Exception{JSONObject h=jwtPart(jwt,0),p=jwtPart(jwt,1);if(!"RS256".equals(h.optString("alg")))throw new Exception("Неподдерживаемая подпись");if(!"https://auth.openai.com".equals(p.optString("iss")))throw new Exception("Неверный issuer");if(p.optLong("exp",0)<System.currentTimeMillis()/1000)throw new Exception("ID token истёк");boolean aud=client.equals(p.optString("aud"));JSONArray aa=p.optJSONArray("aud");if(aa!=null)for(int i=0;i<aa.length();i++)aud|=client.equals(aa.optString(i));if(!aud)throw new Exception("Неверная audience");if(!nonce.equals(p.optString("nonce")))throw new Exception("Неверный nonce");JSONObject jwks=new JSONObject(readUrl(JWKS));JSONArray keys=jwks.getJSONArray("keys");String kid=h.optString("kid");for(int i=0;i<keys.length();i++){JSONObject k=keys.getJSONObject(i);if(kid.equals(k.optString("kid"))){BigInteger n=new BigInteger(1,Base64.decode(k.getString("n"),Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING));BigInteger e=new BigInteger(1,Base64.decode(k.getString("e"),Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING));PublicKey pk=KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(n,e));String[] parts=jwt.split("\\.");Signature s=Signature.getInstance("SHA256withRSA");s.initVerify(pk);s.update((parts[0]+"."+parts[1]).getBytes(StandardCharsets.UTF_8));if(!s.verify(Base64.decode(parts[2],Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING)))throw new Exception("Неверная подпись ID token");return;}}throw new Exception("Ключ подписи не найден");}
     JSONObject postForm(String url,String[][] fields)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(20000);c.setReadTimeout(30000);c.setRequestProperty("Content-Type","application/x-www-form-urlencoded");StringBuilder b=new StringBuilder();for(String[]f:fields){if(b.length()>0)b.append('&');b.append(URLEncoder.encode(f[0],"UTF-8")).append('=').append(URLEncoder.encode(f[1],"UTF-8"));}c.getOutputStream().write(b.toString().getBytes(StandardCharsets.UTF_8));int sc=c.getResponseCode();String x=readAll(sc>=400?c.getErrorStream():c.getInputStream());if(sc>=400)throw new Exception("OAuth HTTP "+sc+": "+x);return new JSONObject(x);}
     String readUrl(String u)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(u).openConnection();c.setConnectTimeout(15000);c.setReadTimeout(15000);return readAll(c.getInputStream());}

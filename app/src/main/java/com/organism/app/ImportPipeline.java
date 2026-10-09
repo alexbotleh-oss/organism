@@ -21,13 +21,20 @@ public class ImportPipeline {
 
     public void importUri(Uri uri,Listener l){
         new Thread(()->{try{
-            String name=String.valueOf(uri.getLastPathSegment());String type=ctx.getContentResolver().getType(uri);
+            String name=displayName(uri);String type=ctx.getContentResolver().getType(uri);
+            boolean zip=name.toLowerCase(Locale.ROOT).endsWith(".zip")||"application/zip".equalsIgnoreCase(type)
+                    ||"application/x-zip-compressed".equalsIgnoreCase(type);
+            if(zip){
+                File rawZip=saveIncomingZip(uri,name);
+                importZip(rawZip,name);
+                l.done("Импорт ZIP завершён: "+name+". "+lastZipSummary);
+                return;
+            }
             byte[] bytes=readBytes(ctx.getContentResolver().openInputStream(uri));
-            if(name.toLowerCase(Locale.ROOT).endsWith(".zip")||"application/zip".equals(type)){importZip(name,bytes);l.done("ChatGPT ZIP обработан: "+name);return;}
             String lower=name.toLowerCase(Locale.ROOT);String text;
             if(lower.endsWith(".pdf")||"application/pdf".equals(type))text=pdf(bytes);
             else text=decodeText(bytes);
-            bytes=null; // release the original 37+ MB byte buffer before parsing the export
+            bytes=null;
             if(isChatGptHtmlExport(name,type,text)){
                 importChatHtmlExport(name,uri.toString(),text);
                 l.done("ChatGPT HTML обработан: "+name+"; диалоги разобраны на отдельные сообщения.");
@@ -101,11 +108,99 @@ public class ImportPipeline {
         return imported;
     }
 
-    private void importZip(String name,byte[] bytes)throws Exception{
-        ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(bytes));ZipEntry e;int n=0;long project=db.project("ORGANISM");
-        while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=decodeText(b);
-            if(p.endsWith("conversations.json")||p.endsWith("chat.json")){long rawSource=db.source("CHAT_EXPORT_RAW",e.getName(),e.getName(),text,sha(text));parseChatJson(e.getName(),text,rawSource);}else if(text.length()>0)ingest("CHAT_EXPORT",e.getName(),e.getName(),text);n++;}
-        z.close();db.event("IMPORT","ChatGPT ZIP завершён, файлов: "+n,project,0,0,"STATED","NOT_VERIFIED");writeSnapshot(project);
+    private volatile String lastZipSummary="";
+
+    private String displayName(Uri uri){
+        android.database.Cursor c=null;
+        try{c=ctx.getContentResolver().query(uri,new String[]{android.provider.OpenableColumns.DISPLAY_NAME},null,null,null);if(c!=null&&c.moveToFirst()){String n=c.getString(0);if(n!=null&&!n.trim().isEmpty())return n;}}
+        catch(Exception ignored){}finally{if(c!=null)c.close();}
+        return String.valueOf(uri.getLastPathSegment());
+    }
+
+    private String shaFile(File file)throws Exception{
+        MessageDigest md=MessageDigest.getInstance("SHA-256");
+        try(InputStream in=new BufferedInputStream(new FileInputStream(file))){byte[] b=new byte[64*1024];int n;while((n=in.read(b))!=-1)md.update(b,0,n);}
+        StringBuilder out=new StringBuilder();for(byte v:md.digest())out.append(String.format(Locale.US,"%02x",v));return out.toString();
+    }
+
+    private File saveIncomingZip(Uri uri,String name)throws Exception{
+        File dir=new File(ctx.getFilesDir(),"raw");if(!dir.exists()&&!dir.mkdirs())throw new IOException("Не удалось создать каталог RAW");
+        String safe=name.replaceAll("[^A-Za-z0-9А-Яа-я._-]","_");
+        File outFile=new File(dir,System.currentTimeMillis()+"_"+safe+".source.zip");
+        try(InputStream in=ctx.getContentResolver().openInputStream(uri);FileOutputStream out=new FileOutputStream(outFile)){
+            if(in==null)throw new IOException("Не удалось открыть ZIP");byte[] buffer=new byte[64*1024];int read;
+            while((read=in.read(buffer))!=-1){out.write(buffer,0,read);}out.getFD().sync();
+        }
+        return outFile;
+    }
+
+    private void importZip(File zipFile,String displayName)throws Exception{
+        int files=0,conversations=0,skippedLargeAux=0,messagesBefore=(int)db.count("memory_objects");boolean foundConversationFile=false;
+        long project=db.project("ORGANISM");
+        long rawSource=db.source("CHAT_EXPORT_RAW",displayName,zipFile.getAbsolutePath(),null,shaFile(zipFile));
+        try(ZipInputStream z=new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)))){
+            ZipEntry entry;
+            while((entry=z.getNextEntry())!=null){
+                if(entry.isDirectory())continue;
+                String path=entry.getName();String lower=path.toLowerCase(Locale.ROOT);
+                if(lower.endsWith("conversations.json")||lower.equals("chat.json")||lower.endsWith("/chat.json")){
+                    foundConversationFile=true;files++;
+                    conversations+=parseChatJsonStream(path,z,displayName,rawSource);
+                    z.closeEntry();
+                }else if(lower.endsWith(".txt")||lower.endsWith(".md")||lower.endsWith(".html")){
+                    // Auxiliary files are optional. If one is large, drain and skip it rather than aborting
+                    // the entire import (official exports can contain large shared-conversation HTML files).
+                    byte[] b=readZipEntryBounded(z,8*1024*1024);
+                    if(b==null){skippedLargeAux++;files++;z.closeEntry();continue;}
+                    String text=decodeText(b);
+                    if(text.length()>0)ingest("CHAT_EXPORT",path,zipFile.getAbsolutePath()+"!/"+path,text);
+                    files++;z.closeEntry();
+                }else{z.closeEntry();}
+            }
+        }
+        if(!foundConversationFile)throw new IOException("В ZIP не найден conversations.json. Выбери исходный ZIP «Экспорт данных ChatGPT», а не отдельный HTML/другой архив.");
+        int messagesAfter=(int)db.count("memory_objects");
+        db.event("IMPORT","ChatGPT ZIP завершён: "+displayName+"; files="+files+"; conversations="+conversations+"; memory_delta="+(messagesAfter-messagesBefore),project,0,rawSource,"STATED","VERIFIED");
+        appendEvent("CHAT_ZIP_IMPORTED",displayName,rawSource);writeSnapshot(project);
+        lastZipSummary="Найдено бесед: "+conversations+"; обработано файлов: "+files+(skippedLargeAux>0?"; пропущено крупных вспомогательных файлов: "+skippedLargeAux:"")+". Исходный ZIP сохранён в RAW.";
+    }
+
+    private int parseChatJsonStream(String path,InputStream stream,String archiveName,long rawSourceId)throws Exception{
+        final long project=db.project("ORGANISM");
+        BufferedReader reader=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8),64*1024);
+        boolean inString=false,escaped=false,started=false,closed=false;int objectDepth=0,imported=0;StringBuilder object=new StringBuilder();int ch;
+        while((ch=reader.read())!=-1){char c=(char)ch;
+            if(!started){if(c=='['){started=true;}continue;}
+            if(closed)break;
+            if(inString){if(objectDepth>0)object.append(c);if(escaped)escaped=false;else if(c=='\\')escaped=true;else if(c=='"')inString=false;continue;}
+            if(c=='"'){inString=true;if(objectDepth>0)object.append(c);continue;}
+            if(c=='{' ){if(objectDepth==0)object.setLength(0);objectDepth++;object.append(c);continue;}
+            if(objectDepth>0){object.append(c);if(c=='}'){objectDepth--;if(objectDepth==0){
+                JSONObject conversation=new JSONObject(object.toString());
+                parseChatConversation(path,conversation,rawSourceId,project);imported++;
+            }}continue;}
+            if(c==']'){closed=true;break;}
+        }
+        if(!started)throw new IOException("В файле "+path+" не найден JSON-массив бесед");
+        if(!closed||objectDepth!=0)throw new IOException("Файл "+path+" обрезан: импорт остановлен на повреждённом JSON");
+        return imported;
+    }
+
+    /**
+     * Reads an optional ZIP entry up to maxBytes. Returns null for an oversized entry,
+     * but always drains it to its end so ZipInputStream can safely continue with later entries.
+     * The required conversations.json path is parsed by the separate streaming parser.
+     */
+    private byte[] readZipEntryBounded(InputStream in,int maxBytes)throws Exception{
+        ByteArrayOutputStream out=new ByteArrayOutputStream(Math.min(maxBytes,64*1024));
+        byte[] buffer=new byte[8192];int n;boolean oversized=false;
+        while((n=in.read(buffer))!=-1){
+            if(!oversized){
+                if(out.size()+n>maxBytes){oversized=true;out.reset();}
+                else out.write(buffer,0,n);
+            }
+        }
+        return oversized?null:out.toByteArray();
     }
 
     private interface JsonObjectHandler { void handle(String jsonObject) throws Exception; }
