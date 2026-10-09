@@ -157,3 +157,13 @@ The build is verified; device behavior is not. Next action is install/test this 
 - **Boundary:** this verifies CI compilation and upload only. The APK has not yet been installed/tested on a real phone; OAuth success is not established.
 - **Next step:** install this exact artifact, open Settings → “Журнал диагностики авторизации”, perform one login attempt, copy the trace, and inspect the first missing/failed stage before changing OAuth behavior. Do not clear app data or touch the existing DB/archive. Never share a trace containing tokens, authorization codes, cookies or passwords; the implemented trace is intended to redact these.
 - Detailed stage record: WL-012 in `docs/WORKLOG.md`.
+
+
+## Handoff — OAuth timeout evidence and next diagnostic build (2026-10-09)
+
+- Device trace supplied by user: browser at `auth.openai.com` displays `Operation timed out`. App trace shows loopback listener READY, browser launch REQUESTED, callback wait started at 18:46:57, no `CALLBACK_RECEIVED` in the supplied excerpt, and app foreground event at 18:48:02.
+- Interpret narrowly: no callback had been recorded by the time of the excerpt. Because the app waits for 120 seconds and the excerpt ends around 65 seconds after launch, it does not show the final local socket timeout. Root cause remains unproven; do not guess that OAuth is fixed or change redirect/scopes speculatively.
+- Commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f` on `fix/oauth-diagnostic-trace-20261009` adds a specific safe `CALLBACK_WAIT TIMEOUT` record and token endpoint HTTP status-only breadcrumbs. It does not log response bodies, secrets or full callback URLs and does not alter OAuth behavior.
+- Work-log: WL-013. Existing DB, imported archive, saved credentials and auth state were not reset or migrated.
+- **Current status:** source committed; CI for this exact commit pending; no device verification of this change.
+- **Next:** check Android CI run for exact commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f`. If green, provide its artifact and perform one controlled attempt, allowing the complete 120-second wait; copy the full trace. Use the first terminal diagnostic event to decide whether the next investigation is callback delivery or token exchange.
