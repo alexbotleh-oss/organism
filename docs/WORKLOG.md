@@ -124,3 +124,14 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Verification:** no code changed for this instrumentation request yet; no build or device test performed. Existing database and saved authentication state were not touched.
 - **Status:** PARTIAL / instrumentation pending. Do not describe the OAuth fix as verified.
 - **Next:** inspect the latest branch head, Android manifest, OAuth callback/server code and auth state persistence; then implement redacted stage-by-stage diagnostics, add focused tests, update this handoff and build CI. Test one real authorization attempt on the phone and use the captured trace to locate the fault before changing the OAuth behavior again.
+
+
+## 2026-10-09 — WL-011 — Redacted OAuth diagnostic trace
+
+- **Lifecycle:** IMPLEMENTED / CI PENDING / DEVICE TEST PENDING.
+- **Starting point:** `fix/zip-import-crash-and-archive-restore` at `c201c730604575bd799971accff486ff0e51bb22`; OAuth implementation in `app/src/main/java/com/organism/app/MainActivity.java`.
+- **Changes:** created `app/src/main/java/com/organism/app/AuthTrace.java`, a bounded local trace (maximum 120 lines) in existing app preferences; instrumented auth start, loopback listener readiness, browser launch request, callback wait/arrival, state check, code presence (boolean only), token exchange start/success, ID-token validation, scope grant/denial, credential persistence, app resume and safe failure class; added a settings dialog with copy and clear actions.
+- **Privacy:** diagnostic entries do not contain OAuth codes, token values, cookies, passwords, raw callback URLs or response bodies. Error records use exception class/stage; the existing user-facing error behavior is unchanged. No DB or stored credentials are reset or migrated.
+- **Commits:** `c3a41f38a82150c3e2789f61bc032e7a52706e66` (AuthTrace class); `0ccf0c0baef1d25546b0df94ef179a9bb93db62a` (MainActivity instrumentation/UI).
+- **Verification:** source changes are committed. Android compilation, CI, APK artifact inspection and real-device behavior have not yet been verified. No claim of an OAuth fix is made; this change adds observability only.
+- **Risk / follow-up:** token endpoint failures currently need a safe HTTP-status/error-code breadcrumb to distinguish service-side errors from transport/lifecycle failures; add only if source update can be applied safely. Then run Android CI and inspect the exact APK artifact. On-device, perform one authorization attempt and copy the diagnostic trace.
