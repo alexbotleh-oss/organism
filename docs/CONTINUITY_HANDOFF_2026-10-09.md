@@ -232,3 +232,14 @@ The prior handoff said CI was pending because the first status helper returned n
 - **Safety:** no database, imported chat archive, app preferences, OAuth credentials, or user data was cleared or migrated. No JS injection, DOM/cookie reading, automated Send action, or usage-limit bypass was added.
 - **Current status:** PARTIAL — fallback implemented in source; build/device test pending.
 - **Next action:** inspect Actions for the latest push build. If green, install the artifact as an update without clearing app data, test «Открыть в браузере», then manually send one harmless test message in the official browser and report the result.
+
+
+## Handoff — Web-first multi-provider model connections (2026-10-09)
+
+- **User's explicit decision:** connect models primarily through official web interfaces and retain API as an optional alternative. User-supplied URLs: Claude https://claude.ai/ ; DeepSeek https://chat.deepseek.com/ ; Qwen https://chat.qwen.ai/ ; Gemini https://gemini.google.com/ ; Yandex Alice https://alice.yandex.ru/ .
+- **Spec:** `docs/PLATFORM_WEB_CONNECTOR_MVP_v0.1.md` updated in commit `db9fb17144762d2caaad7f5175c49e885901c06f` with provider-neutral architecture, manual transfer boundaries, provenance/status tracking, and staged implementation.
+- **Work log:** WL-020 appended in commit `ac8793ae51b293dec9dbc1c73cffef3f3b31acea`.
+- **Implementation is NOT done yet:** no multi-provider picker/adapters were added by the documentation commits. Existing API/OAuth connector remains untouched. No claims that the five providers work in WebView have been verified.
+- **Latest known successful Android build:** run `37977490305`, commit `e872fa9b8eaecc4a8291ce9eef5ff4af7db76de7`, conclusion success; it includes the external-browser fallback button, but predates the multi-provider specification decision. Device test still pending.
+- **Next implementation sequence:** (1) validate the fallback build on the phone without clearing app data; (2) implement provider registry + selection UI; (3) shared manual web connector flow for Claude and DeepSeek; (4) verify copy/import provenance and session isolation; (5) add Qwen, Gemini and Alice via the same contract; (6) preserve API as a separate selectable transport.
+- **Safety constraints:** no DOM/script injection, cookie/session extraction, automated Send, usage-limit bypass, credential deletion, or user-data reset. A provider is not marked connected just because its landing page opens.
