@@ -3,11 +3,14 @@ from __future__ import annotations
 import base64, hashlib, json, os, secrets, threading, time, urllib.parse, urllib.request, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from organism_core import OrganismCore
 import jwt
 from jwt import PyJWKClient
 
 HOST="127.0.0.1"; PORT=1455
 ROOT=Path(__file__).resolve().parent; WEB=ROOT/"web"
+CORE_DB_PATH=Path(os.environ.get("ORGANISM_DB_PATH", str(ROOT/"data"/"organism.db")))
+CORE=OrganismCore(CORE_DB_PATH)
 CONFIG_DIR=Path.home()/".config"/"organism"
 CRED_FILE=CONFIG_DIR/"chatgpt_credentials.json"; HOST_ID_FILE=CONFIG_DIR/"host_id"
 AUTHORIZE_URL="https://auth.openai.com/api/accounts/authorize"
@@ -145,19 +148,97 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8"); self.end_headers(); self.wfile.write(data); return
         if parsed.path=="/api/status":
             c=load_creds(); self.send_json({"connected":bool(c and c.get("access_token")),"email":(c or {}).get("email","")}); return
+        if parsed.path=="/api/core/status":
+            self.send_json({"ok":True,"core_version":"0.4","database":str(CORE_DB_PATH),"stats":CORE.stats()}); return
         if parsed.path=="/": self.path="/index.html"
         path=(WEB/urllib.parse.unquote(self.path.lstrip("/"))).resolve()
         if WEB not in path.parents or not path.is_file(): self.send_error(404); return
         types={".html":"text/html",".js":"text/javascript",".css":"text/css",".json":"application/json"}
         self.send_response(200); self.send_header("Content-Type",types.get(path.suffix,"application/octet-stream")); self.end_headers(); self.wfile.write(path.read_bytes())
     def do_POST(self):
-        if self.path!="/api/chat": self.send_error(404); return
+        parsed=urllib.parse.urlparse(self.path)
         try:
-            n=int(self.headers.get("Content-Length","0")); body=json.loads(self.rfile.read(n).decode())
-            if not load_creds(): raise RuntimeError("ChatGPT не подключён. Сначала подключите ChatGPT.")
-            reply=responses_text(body.get("message",""),body.get("context",{}),body.get("history",[]))
-            self.send_json({"ok":True,"text":reply})
-        except Exception as e: self.send_json({"ok":False,"error":str(e)},400)
+            n=int(self.headers.get("Content-Length","0"))
+            body=json.loads(self.rfile.read(n).decode() or "{}")
+            if parsed.path=="/api/chat":
+                if not load_creds(): raise RuntimeError("ChatGPT не подключён. Сначала подключите ChatGPT.")
+                reply=responses_text(body.get("message",""),body.get("context",{}),body.get("history",[]))
+                self.send_json({"ok":True,"text":reply}); return
+            if parsed.path=="/api/core/import-text":
+                result=CORE.import_text(
+                    str(body.get("source_name") or "mobile-import.txt"),
+                    str(body.get("text") or ""),
+                    source_kind=str(body.get("source_kind") or "chat_export"),
+                    speaker=str(body.get("speaker") or "unknown"),
+                    origin=str(body.get("origin") or "external"),
+                    completeness=str(body.get("completeness") or "unknown"),
+                    metadata=body.get("metadata") if isinstance(body.get("metadata"),dict) else {},
+                )
+                self.send_json({"ok":True,"result":result}); return
+            if parsed.path=="/api/core/import-legacy":
+                snapshot=body.get("snapshot")
+                if not isinstance(snapshot,dict): raise ValueError("snapshot must be a JSON object")
+                self.send_json({"ok":True,"result":CORE.import_legacy_snapshot(snapshot,source_name=str(body.get("source_name") or "organism-pwa-export.json"),raw_text=body.get("raw_text") if isinstance(body.get("raw_text"),str) else None)}); return
+            if parsed.path=="/api/core/claim":
+                result=CORE.add_claim(
+                    str(body.get("claim_text") or ""), project_id=body.get("project_id"),
+                    source_kind=str(body.get("source_kind") or "user_report"),
+                    raw_segment_ids=body.get("raw_segment_ids") or [],
+                    claim_type=str(body.get("claim_type") or "assertion"),
+                    scope=str(body.get("scope") or "project"),
+                    environment=body.get("environment") if isinstance(body.get("environment"),dict) else {},
+                    origin=str(body.get("origin") or "external"),
+                    extractor_version=body.get("extractor_version"),
+                )
+                self.send_json({"ok":True,"claim_id":result}); return
+            if parsed.path=="/api/core/experience":
+                result=CORE.add_experience(
+                    str(body.get("title") or "Experience candidate"), project_id=body.get("project_id"),
+                    conditions=body.get("conditions") if isinstance(body.get("conditions"),dict) else {},
+                    action_taken=str(body.get("action_taken") or ""),
+                    observed_outcome=str(body.get("observed_outcome") or ""),
+                    verification_method=str(body.get("verification_method") or "not yet checked"),
+                    scope=str(body.get("scope") or "project"),
+                    environment=body.get("environment") if isinstance(body.get("environment"),dict) else {},
+                    applies_when=str(body.get("applies_when") or ""), fails_when=str(body.get("fails_when") or ""),
+                    raw_segment_ids=body.get("raw_segment_ids") or [],
+                    source_kind=str(body.get("source_kind") or "user_report"),
+                    origin=str(body.get("origin") or "external"),
+                )
+                self.send_json({"ok":True,"experience_id":result}); return
+            if parsed.path=="/api/core/verify":
+                result=CORE.verify(
+                    str(body.get("object_type") or ""), str(body.get("object_id") or ""),
+                    method=str(body.get("method") or ""), channel=str(body.get("channel") or ""),
+                    outcome=str(body.get("outcome") or ""), description=str(body.get("description") or ""),
+                    actor=str(body.get("actor") or "user"), artifact_ref=body.get("artifact_ref"),
+                    independent_of_model=bool(body.get("independent_of_model",False)),
+                )
+                self.send_json({"ok":True,"verification_id":result}); return
+            if parsed.path=="/api/core/handoff":
+                result=CORE.build_handoff(
+                    project_id=body.get("project_id"), task=str(body.get("task") or ""),
+                    environment=body.get("environment") if isinstance(body.get("environment"),dict) else {},
+                    model_name=str(body.get("model_name") or "unknown"),
+                    model_version=str(body.get("model_version") or "unknown"),
+                    max_chars=int(body.get("max_chars") or 9000),
+                )
+                self.send_json({"ok":True,"result":result}); return
+            if parsed.path=="/api/core/application-outcome":
+                CORE.record_application_outcome(
+                    str(body.get("application_id") or ""), outcome=str(body.get("outcome") or ""),
+                    notes=str(body.get("notes") or ""), actor=str(body.get("actor") or "user"),
+                )
+                self.send_json({"ok":True}); return
+            if parsed.path=="/api/core/delete":
+                result=CORE.authorize_delete(
+                    str(body.get("object_type") or ""), str(body.get("object_id") or ""),
+                    authorized_by=str(body.get("authorized_by") or ""), reason=str(body.get("reason") or ""),
+                )
+                self.send_json({"ok":True,"tombstone_id":result}); return
+            self.send_error(404)
+        except Exception as e:
+            self.send_json({"ok":False,"error":str(e)},400)
 
 if __name__=="__main__":
     if not WEB.exists(): raise SystemExit("Не найдена папка web/")
