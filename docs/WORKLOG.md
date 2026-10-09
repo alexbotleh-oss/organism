@@ -155,3 +155,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety/privacy:** no database or saved user data was changed. Diagnostic trace is bounded to 120 lines and must not include authorization codes, tokens, cookies, passwords, raw callback URLs or response bodies.
 - **Status:** APK artifact available; no device installation or login attempt has yet been confirmed.
 - **Next action:** install the artifact on the user's phone, open Settings → “Журнал диагностики авторизации”, perform exactly one login attempt, then copy the trace back for analysis. Do not clear app data, re-import archives, or claim OAuth fixed before examining device evidence.
+
+
+## 2026-10-09 — WL-013 — Add safe OAuth timeout/status breadcrumbs
+
+- **Lifecycle:** CHANGED → CI PENDING → DEVICE TEST PENDING.
+- **User evidence:** on the Android phone, the browser displayed `auth.openai.com` with `Operation timed out`. The trace from 18:46:57 records loopback listener readiness, browser launch request and callback wait, but no `CALLBACK_RECEIVED`; a foreground event occurred at 18:48:02. This establishes that the app had not recorded a callback by the time of that trace, but does not prove whether the platform page, network, browser handoff or callback delivery caused the timeout.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`, source commit `6d5fd748260fedaa5bff5fc9a66b82c6c5246a8b` (CI passed for that diagnostic APK); edited `app/src/main/java/com/organism/app/MainActivity.java` after fetching its current blob SHA.
+- **Change:** commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f` adds a specific `CALLBACK_WAIT | TIMEOUT` entry when the loopback accept reaches its 120-second timeout, and records only HTTP status codes for token endpoint success/failure. Error bodies remain excluded from the diagnostic trace. No OAuth behavior, scopes, redirect URI, or credentials were changed.
+- **Reason:** the supplied trace was captured before the 120-second local callback wait had expired, so it cannot distinguish a delayed callback from a final local timeout. Token HTTP status is useful only if the callback arrives and token exchange begins.
+- **Verification:** source commit recorded; Android CI has not yet been polled for this exact commit. No device test has been performed on this new build.
+- **Privacy/data safety:** no codes, tokens, cookies, passwords, full callback URLs or response bodies are added to the trace. No database, archive, stored credentials or app data was reset or migrated.
+- **Status:** PARTIAL. This is additional diagnostic instrumentation, not an OAuth fix. The current evidence points to a missing callback at the time of capture; root cause remains unknown.
+- **Next action:** confirm CI for commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f`; if successful, share the new APK artifact. Then one controlled device attempt should be allowed to finish (up to 120 seconds) and the full updated trace copied, including any `CALLBACK_WAIT TIMEOUT` or HTTP status event.
