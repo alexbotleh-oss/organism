@@ -40,6 +40,38 @@ class OrganismCoreTests(unittest.TestCase):
                 outcome="verified", description="A second model repeated the claim",
             )
 
+    def test_model_review_cannot_refute_a_claim(self):
+        claim = self.core.add_claim("The app starts", project_id="P1", source_kind="model")
+        with self.assertRaises(ValueError):
+            self.core.verify(
+                "claim", claim, method="second model disagreed", channel="model_review",
+                outcome="contradicted", description="Another model disagreed",
+            )
+
+    def test_user_reported_failure_is_not_automatically_ground_truth(self):
+        claim = self.core.add_claim("The app starts", project_id="P1", source_kind="user_report")
+        self.core.verify(
+            "claim", claim, method="user report", channel="user_report",
+            outcome="failed", description="User reports that the app did not start",
+        )
+        row = next(x for x in self.core.export_snapshot()["claims"] if x["id"] == claim)
+        self.assertEqual(row["verification_status"], "unverified")
+
+    def test_experience_cannot_be_created_as_verified(self):
+        with self.assertRaises(ValueError):
+            self.core.add_experience(
+                "Pretend verified", project_id="P1", conditions={"env": "test"},
+                action_taken="run command", observed_outcome="it worked",
+                verification_method="unknown", verification_status="verified",
+            )
+
+    def test_project_directive_does_not_leak_to_other_project(self):
+        self.core.add_directive("Project P1 only", project_id="P1", scope="project")
+        p1 = self.core.build_handoff(project_id="P1", task="task")
+        p2 = self.core.build_handoff(project_id="P2", task="task")
+        self.assertEqual(len(p1["payload"]["directives"]), 1)
+        self.assertEqual(len(p2["payload"]["directives"]), 0)
+
     def test_user_satisfaction_is_not_verification(self):
         claim = self.core.add_claim("The app works", project_id="P1", source_kind="user_report")
         with self.assertRaises(ValueError):
