@@ -33,20 +33,20 @@ public class MainActivity extends Activity {
     static final int CALLBACK_PORT_HINT=1455;
 
     Db db; ImportPipeline importer; ReflexEngine reflex=new ReflexEngine(); ContextEngine contextEngine; ExperienceEngine experienceEngine;
-    LinearLayout root,content; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner; ScrollView chatScroll;
+    LinearLayout root,content; TextView status,screenTitle,chatView; EditText chatInput; Spinner modelSpinner; ScrollView chatScroll; HorizontalScrollView navScroll;
     Handler main=new Handler(Looper.getMainLooper()); boolean busy=false; String screen="home";
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model=""; long expiresAt=0;
     ArrayList<String> modelSlugs=new ArrayList<>(),modelNames=new ArrayList<>();
 
-    @Override public void onCreate(Bundle b){super.onCreate(b);WindowCompat.setDecorFitsSystemWindows(getWindow(),false);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);try{db=new Db(this);importer=new ImportPipeline(this,db);contextEngine=new ContextEngine(db);experienceEngine=new ExperienceEngine(db);loadCreds();buildShell();showHome();}catch(Throwable t){showStartupError(t);}}
+    @Override public void onCreate(Bundle b){super.onCreate(b);WindowCompat.setDecorFitsSystemWindows(getWindow(),false);getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);try{db=new Db(this);importer=new ImportPipeline(this,db);contextEngine=new ContextEngine(db);experienceEngine=new ExperienceEngine(db);loadCreds();buildShell();showHome();}catch(Throwable t){showStartupError(t);}}
     void showStartupError(Throwable t){Log.e("ORGANISM","Startup failure",t);TextView v=new TextView(this);v.setText("ОРГАНИЗМ не смог запуститься.\n\nОшибка: "+t.getClass().getName()+"\n"+String.valueOf(t.getMessage())+"\n\nЗакройте приложение и сообщите этот текст разработчику.");v.setTextSize(16);v.setTextColor(Color.rgb(30,36,48));v.setPadding(32,48,32,48);v.setTextIsSelectable(true);ViewCompat.setOnApplyWindowInsetsListener(v,(view,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());view.setPadding(32,bars.top+32,32,bars.bottom+32);return insets;});setContentView(v);ViewCompat.requestApplyInsets(v);}
     int dp(float value){return (int)(value*getResources().getDisplayMetrics().density+0.5f);}
     GradientDrawable rounded(int color,float radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
     TextView tv(String s,int z,int c){TextView v=new TextView(this);v.setText(s);v.setTextSize(z);v.setTextColor(c);v.setPadding(dp(10),dp(8),dp(10),dp(8));return v;}
     Button bt(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(Color.rgb(31,61,112));b.setTextSize(14);b.setPadding(dp(12),dp(8),dp(12),dp(8));b.setMinHeight(dp(46));b.setBackground(rounded(Color.rgb(232,239,252),16));return b;}
     void buildShell(){
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(245,247,251)); ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());v.setPadding(0,bars.top,0,0);return insets;});
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(245,247,251)); ViewCompat.setOnApplyWindowInsetsListener(root,(v,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());androidx.core.graphics.Insets ime=insets.getInsets(WindowInsetsCompat.Type.ime());boolean keyboard=insets.isVisible(WindowInsetsCompat.Type.ime());v.setPadding(0,bars.top,0,keyboard?ime.bottom:bars.bottom);if(navScroll!=null)navScroll.setVisibility(keyboard?View.GONE:View.VISIBLE);return insets;});
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(18,12,18,8);
         screenTitle=tv("ОРГАНИЗМ",23,Color.rgb(16,24,39));top.addView(screenTitle,new LinearLayout.LayoutParams(0,-2,1));
         status=tv(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён",12,Color.DKGRAY);top.addView(status);
@@ -54,7 +54,7 @@ public class MainActivity extends Activity {
         root.addView(top);
         content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,80);
         ScrollView scroll=new ScrollView(this);scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        HorizontalScrollView navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
+        navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
         String[][] items={{"Главная","home"},{"Чат","chat"},{"Память","memory"},{"Импорт","import"},{"База","database"},{"Настройки","settings"}};
         for(String[] it:items){Button b=bt(it[0]);b.setOnClickListener(v->navigate(it[1]));nav.addView(b,new LinearLayout.LayoutParams(150,58));}
         navScroll.addView(nav);root.addView(navScroll);setContentView(root);
