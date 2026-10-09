@@ -122,7 +122,8 @@ public class ImportPipeline {
                 JSONObject content=message.optJSONObject("content");
                 String body=chatMessageText(content);
 
-                String nodeText="[NODE id="+nodeId+" parent="+parent+" children="+childIds+
+                String nodeText="[CHAT_MESSAGE conversation_id="+conversationId+" source_id="+source+
+                        " node_id="+nodeId+" parent="+parent+" children="+childIds+
                         " current="+nodeId.equals(currentNode)+"]\n"
                         +"message_id: "+messageId+" | role: "+role
                         +(authorName.isEmpty()?"":" | author: "+authorName)
@@ -132,7 +133,7 @@ public class ImportPipeline {
 
                 // One searchable memory object per message keeps later turns retrievable
                 // instead of truncating an entire long conversation to its first characters.
-                db.memory("CHAT_MESSAGE",title+" [node "+nodeId+"]",nodeText,
+                db.memory("CHAT_MESSAGE",title+" [conversation "+(conversationId.isEmpty()?"UNKNOWN":conversationId)+" node "+nodeId+"]",nodeText,
                         project,0,source,"STATED","NOT_VERIFIED",0.5);
                 // Store structural provenance separately from semantic interpretation.
                 db.event("CHAT_MESSAGE_IMPORTED","conversation="+title+"; node="+nodeId+
