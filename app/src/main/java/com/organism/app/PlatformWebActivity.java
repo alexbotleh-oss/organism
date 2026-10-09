@@ -40,8 +40,13 @@ public class PlatformWebActivity extends Activity {
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER_VERTICAL);
+        Button preview = new Button(this);
+        preview.setText("Просмотр");
+        preview.setAllCaps(false);
+        preview.setOnClickListener(v -> previewPrompt());
+        actions.addView(preview, new LinearLayout.LayoutParams(0, -2, 1));
         Button copy = new Button(this);
-        copy.setText("Скопировать запрос");
+        copy.setText("Копировать");
         copy.setAllCaps(false);
         copy.setOnClickListener(v -> copyPrompt());
         actions.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
@@ -73,6 +78,26 @@ public class PlatformWebActivity extends Activity {
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void previewPrompt() {
+        if (prompt.trim().isEmpty()) {
+            Toast.makeText(this, "Подготовьте запрос в чате ORGANISM, затем откройте веб-режим.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        TextView body = new TextView(this);
+        body.setText(prompt);
+        body.setTextIsSelectable(true);
+        body.setTextSize(13);
+        body.setPadding(dp(16), dp(12), dp(16), dp(12));
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(body);
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Точный текст, подготовленный ORGANISM")
+            .setView(scroll)
+            .setPositiveButton("Закрыть", null)
+            .setNeutralButton("Копировать", (dialog, which) -> copyPrompt())
+            .show();
     }
 
     private void copyPrompt() {
