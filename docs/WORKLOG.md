@@ -64,3 +64,13 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Risks/limits:** existing DB is not reset or migrated by these changes. Previously imported duplicate source rows, if already present in the user's database, are not deleted or automatically deduplicated; preserve them until a safe, auditable repair plan is designed. Transcript ordering currently follows insertion ID, which is the parser's import order; unusual branching conversations need device/data validation.
 - **Status:** PARTIAL — archive/search UI and duplicate-source creation fix committed; build pending; imported ZIP completeness and Android behavior unverified on device. Official-platform WebView connector remains unimplemented/unverified, and API subscription limits are not bypassed.
 - **Next action:** wait for workflow run `37943562566`; if green, inspect the exact build artifact and logs, then validate search/open/transcript and data counts on the user's existing device database without re-importing the ZIP. If CI fails, fix the exact failure before distributing an APK.
+
+
+## 2026-10-09 — WL-006 — CI verification for archive/search
+
+- **Lifecycle:** VERIFIED (CI build only) → HANDED_OFF; device validation remains outstanding.
+- **Commit tested:** `fc3acbe57d745de04953b55cac8e5035d0357f1c`.
+- **Evidence:** Android build workflow `37943562566` completed successfully; job `assemble-debug` and step `Build debug APK` succeeded, then `Upload debug APK` succeeded. https://github.com/alexbotleh-oss/organism/actions/runs/37943562566. Second APK workflow `37943562807` also completed successfully; job `build` and APK upload succeeded. https://github.com/alexbotleh-oss/organism/actions/runs/37943562807.
+- **Boundary:** this proves CI compilation and artifact upload for the exact code commit, not that the feature works on the user's phone or that previously imported records are complete. No real-device test or database inspection was performed.
+- **Data safety:** no user database touched; no archive re-import requested or performed.
+- **Next:** obtain/inspect the generated APK artifact, then perform device validation using the existing database; do not claim device confirmation until the user sees the archive search and transcript work.
