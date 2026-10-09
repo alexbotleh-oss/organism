@@ -138,6 +138,31 @@ class OrganismCoreTests(unittest.TestCase):
         self.assertNotIn("попробуйте вариант X", source["raw_text"])
         self.assertTrue(any(e["event_type"] == "USER_AUTHORIZED_REDACTION" for e in snap["events"]))
 
+    def test_user_deletion_redacts_stored_handoff_snapshot(self):
+        claim = self.core.add_claim(
+            "Sensitive verified detail", project_id="P1", source_kind="artifact",
+            environment={"platform": "test"},
+        )
+        self.core.verify(
+            "claim", claim, method="test", channel="test", outcome="verified",
+            description="Test confirmed the claim", artifact_ref="test-run:1",
+        )
+        handoff = self.core.build_handoff(
+            project_id="P1", task="use the verified detail", environment={"platform": "test"},
+        )
+        before_hash = handoff["sha256"]
+        tombstone = self.core.authorize_delete(
+            "claim", claim, authorized_by="user", reason="user requested removal",
+        )
+        snap = self.core.export_snapshot()
+        app = next(x for x in snap["applications"] if x["id"] == handoff["application_id"])
+        self.assertNotIn("Sensitive verified detail", app["handoff_json"])
+        self.assertNotEqual(app["handoff_sha256"], before_hash)
+        self.assertIn(claim, json.loads(app["handoff_json"])["redacted_references"])
+        event = next(x for x in snap["events"] if x["event_type"] == "USER_AUTHORIZED_REDACTION")
+        self.assertEqual(event["payload_json"].find(before_hash) >= 0, True)
+        self.assertIn(tombstone, [x["id"] for x in snap["tombstones"]])
+
     def test_event_log_is_append_only(self):
         with self.core._connect() as conn:
             event_id = conn.execute("SELECT id FROM events LIMIT 1").fetchone()["id"]
