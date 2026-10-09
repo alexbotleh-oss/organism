@@ -243,3 +243,13 @@ The prior handoff said CI was pending because the first status helper returned n
 - **Latest known successful Android build:** run `37977490305`, commit `e872fa9b8eaecc4a8291ce9eef5ff4af7db76de7`, conclusion success; it includes the external-browser fallback button, but predates the multi-provider specification decision. Device test still pending.
 - **Next implementation sequence:** (1) validate the fallback build on the phone without clearing app data; (2) implement provider registry + selection UI; (3) shared manual web connector flow for Claude and DeepSeek; (4) verify copy/import provenance and session isolation; (5) add Qwen, Gemini and Alice via the same contract; (6) preserve API as a separate selectable transport.
 - **Safety constraints:** no DOM/script injection, cookie/session extraction, automated Send, usage-limit bypass, credential deletion, or user-data reset. A provider is not marked connected just because its landing page opens.
+
+## Handoff — Imported chat search navigation (2026-10-09)
+
+- **Latest code change:** `e670155838794084939eba546a225b705cdde541` (`MainActivity.java`). The existing imported-chat archive now shows a matching message snippet and opens the paginated conversation view at the 100-message page containing the first body match. Empty search opens page 1. User text remains SQL-bound.
+- **Acceptance criteria:** appended to `docs/DEVICE_FEEDBACK_2026-10-09_CHAT_ARCHIVE_GAP.md` in commit `fe98bbad140411e3894bd4fe3a825d8978a3eae5`.
+- **Work log:** WL-021 recorded in commit `2fc313611d8e326197c354841bf5a229e1df9ffb`.
+- **Verification:** source read-back and static review completed. GitHub Actions run `37980569567` for code SHA `e670155838794084939eba546a225b705cdde541` was still in progress at the last check. No device test. The later docs-only work-log commit does not change app code.
+- **Safety:** read-only archive UI/query update. No database schema or imported rows changed; no re-import, reset, credential change, or RAW deletion.
+- **Known limits:** title-only match opens page 1; result count cap remains 500; Android SQLite runtime and on-device navigation are unverified.
+- **Next action:** check run `https://github.com/alexbotleh-oss/organism/actions/runs/37980569567`. If successful, use the matching APK to test body search and a match beyond message 100, as well as title-only/no-match. Then record actual device feedback before moving to the multi-provider web connector.
