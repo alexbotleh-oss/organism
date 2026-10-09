@@ -95,3 +95,10 @@ This confirms CI build only. No Android device validation has happened yet. Next
 - Commit `bd0653fb2195997cfb7df8915d6cac8ebd86fc41` updates the archive query to list only conversation sources with at least one linked `CHAT_MESSAGE`. This prevents empty duplicate source records from older builds appearing as blank conversations; it does not delete or alter stored records.
 - Work-log entry: `429ab25f9a4bdf2df13161631c9b370694b3fff8`.
 - The prior app commit `fc3acbe57d745de04953b55cac8e5035d0357f1c` passed CI. This additional query change has not yet been build-verified. Next: check CI for `bd0653fb2195997cfb7df8915d6cac8ebd86fc41`, then validate on the phone without re-importing the ZIP.
+
+
+## CI confirmation — follow-up archive filter
+
+The latest app commit `bd0653fb2195997cfb7df8915d6cac8ebd86fc41` now has both successful CI workflows: Android build `37943950470` and APK build/upload `37943950487`. APK artifact `organism-debug-apk` is 11,345,011 bytes, SHA-256 `77b3ecc9d02a8a6c784b754cde53b0758af0b47a5ce7abb42a2b54ed0ce20f9c`. Artifact ZIP: https://api.github.com/repos/alexbotleh-oss/organism/actions/artifacts/11622002797/zip (may require GitHub authentication). Work-log evidence commit: `5f378d1f5bc34e0ad1dab78fe1d32f93072519ae`.
+
+The build is verified; device behavior is not. Next action is install/test this build on the existing Android app/database without re-importing the ZIP, then record what is observed. No old rows were deleted.
