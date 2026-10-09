@@ -56,25 +56,6 @@ public class ImportPipeline {
         writeSnapshot(project);
     }
 
-    private void extractStructure(String text,long project,long src,long mem,String title){
-        String[] lines=text.split("\n");StringBuilder ingredients=new StringBuilder(),steps=new StringBuilder(),tips=new StringBuilder(),bju=new StringBuilder();
-        boolean ing=false,step=false,tip=false;
-        for(String raw:lines){
-            String x=raw.trim();if(x.isEmpty())continue;String lo=x.toLowerCase(Locale.ROOT);
-            if(lo.matches(".*(ингредиент|ingredients|состав).*")){ing=true;step=false;tip=false;continue;}
-            if(lo.matches(".*(приготов|порядок|инструкц|шаг|steps|directions).*")){step=true;ing=false;tip=false;continue;}
-            if(lo.matches(".*(совет|tips|примечан|подсказ).*")){tip=true;ing=false;step=false;continue;}
-            if(lo.matches(".*(бжу|кбжу|белк|жир|углевод|калори|kcal|protein|fat|carb).*"))bju.append(x).append("\n");
-            else if(ing)ingredients.append(x).append("\n");else if(step)steps.append(x).append("\n");else if(tip)tips.append(x).append("\n");
-        }
-        if(ingredients.length()>0){long m=db.memory("FACT","Ингредиенты: "+title,ingredients.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","ingredients",src);}
-        if(steps.length()>0){long m=db.memory("FACT","Приготовление: "+title,steps.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","preparation",src);}
-        if(tips.length()>0){long m=db.memory("NOTE","Советы: "+title,tips.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","tips",src);}
-        if(bju.length()>0){long m=db.memory("FACT","БЖУ/КБЖУ: "+title,bju.toString(),project,0,src,"STATED","NOT_VERIFIED",0.5);db.relation(mem,m,"DERIVED_FROM",src);tag(m,"domain","nutrition",src);}
-    }
-
-    private void tag(long mem,String dim,String value,long src){android.content.ContentValues v=new android.content.ContentValues();v.put("memory_id",mem);v.put("dimension",dim);v.put("value",value);v.put("normalized_value",value.toLowerCase(Locale.ROOT));v.put("confidence",0.5);v.put("source_id",src);v.put("created_at",db.now());db.getWritableDatabase().insert("memory_tags",null,v);}
-
     private void importZip(String name,byte[] bytes)throws Exception{
         ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(bytes));ZipEntry e;int n=0;long project=db.project("ORGANISM");
         while((e=z.getNextEntry())!=null){if(e.isDirectory())continue;String p=e.getName().toLowerCase(Locale.ROOT);if(!(p.endsWith(".json")||p.endsWith(".txt")||p.endsWith(".md")||p.endsWith(".html")))continue;byte[] b=readZipEntry(z);String text=decodeText(b);
