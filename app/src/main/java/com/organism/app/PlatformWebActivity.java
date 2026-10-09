@@ -8,6 +8,8 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
+import android.widget.EditText;
 import android.net.Uri;
 import android.webkit.WebChromeClient;
 import android.webkit.ValueCallback;
@@ -35,50 +37,24 @@ public class PlatformWebActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
+        root.setFocusableInTouchMode(true);
 
-        TextView notice = new TextView(this);
-        notice.setText("ChatGPT Web · ручной режим\nЗапрос не отправляется автоматически. Скопируйте подготовленный текст, вставьте его в ChatGPT и отправьте там. Ответ скопируйте вручную, затем вернитесь в ORGANISM и нажмите «Вставить ответ из ChatGPT Web». Страница и аккаунт не читаются кодом ORGANISM.");
-        notice.setTextColor(Color.rgb(35, 43, 58));
-        notice.setTextSize(13);
-        notice.setPadding(dp(12), dp(8), dp(12), dp(8));
-        root.addView(notice, new LinearLayout.LayoutParams(-1, -2));
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-        Button preview = new Button(this);
-        preview.setText("Просмотр");
-        preview.setAllCaps(false);
-        preview.setOnClickListener(v -> previewPrompt());
-        actions.addView(preview, new LinearLayout.LayoutParams(0, -2, 1));
-        Button copy = new Button(this);
-        copy.setText("Копировать");
-        copy.setAllCaps(false);
-        copy.setOnClickListener(v -> copyPrompt());
-        actions.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
-        Button reload = new Button(this);
-        reload.setText("Обновить");
-        reload.setAllCaps(false);
-        reload.setOnClickListener(v -> { if (webView != null) webView.reload(); });
-        actions.addView(reload, new LinearLayout.LayoutParams(-2, -2));
-        Button close = new Button(this);
-        close.setText("Назад");
-        close.setAllCaps(false);
-        close.setOnClickListener(v -> finish());
-        actions.addView(close, new LinearLayout.LayoutParams(-2, -2));
-        root.addView(actions, new LinearLayout.LayoutParams(-1, -2));
-
-        Button external = new Button(this);
-        external.setText("Открыть в браузере");
-        external.setAllCaps(false);
-        external.setOnClickListener(v -> openExternalBrowser());
-        root.addView(external, new LinearLayout.LayoutParams(-1, -2));
-
-        TextView status = new TextView(this);
-        status.setText("Если поле ввода или отправка не работают здесь, откройте официальный сайт в браузере. Запрос и ответ передаются вручную.");
-        status.setTextColor(Color.rgb(75, 83, 96));
-        status.setTextSize(12);
-        status.setPadding(dp(12), dp(2), dp(12), dp(4));
-        root.addView(status, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(12), dp(4), dp(8), dp(4));
+        TextView title = new TextView(this);
+        title.setText("ORGANISM · ChatGPT");
+        title.setTextSize(16);
+        title.setTextColor(Color.rgb(35, 43, 58));
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        Button back = new Button(this);
+        back.setText("Назад");
+        back.setAllCaps(false);
+        back.setOnClickListener(v -> finish());
+        header.addView(back, new LinearLayout.LayoutParams(-2, -2));
+        root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
@@ -98,8 +74,7 @@ public class PlatformWebActivity extends Activity {
                 }
                 pendingFileChooser = filePathCallback;
                 try {
-                    Intent chooserIntent = fileChooserParams.createIntent();
-                    startActivityForResult(chooserIntent, FILE_CHOOSER_REQUEST);
+                    startActivityForResult(fileChooserParams.createIntent(), FILE_CHOOSER_REQUEST);
                     return true;
                 } catch (Exception e) {
                     pendingFileChooser.onReceiveValue(null);
@@ -112,7 +87,54 @@ public class PlatformWebActivity extends Activity {
             }
         });
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        TextView helper = new TextView(this);
+        helper.setText("Вводи запрос здесь. Пока сайт требует ручную отправку, ORGANISM не будет сообщать, что запрос отправлен автоматически.");
+        helper.setTextSize(11);
+        helper.setTextColor(Color.rgb(90, 98, 110));
+        helper.setPadding(dp(12), dp(3), dp(12), dp(3));
+        root.addView(helper, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout composer = new LinearLayout(this);
+        composer.setOrientation(LinearLayout.HORIZONTAL);
+        composer.setGravity(Gravity.BOTTOM);
+        composer.setPadding(dp(8), dp(5), dp(8), dp(8));
+        composer.setBackgroundColor(Color.rgb(248, 249, 251));
+        EditText input = new EditText(this);
+        input.setHint("Сообщение для ChatGPT…");
+        input.setTextSize(16);
+        input.setGravity(Gravity.TOP | Gravity.START);
+        input.setMinLines(1);
+        input.setMaxLines(4);
+        input.setSingleLine(false);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        if (!prompt.trim().isEmpty()) input.setText(prompt);
+        composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
+        Button send = new Button(this);
+        send.setText("Отправить");
+        send.setAllCaps(false);
+        send.setOnClickListener(v -> {
+            String text = input.getText().toString().trim();
+            if (text.isEmpty()) {
+                Toast.makeText(this, "Сначала введи запрос.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            ClipboardManager clipboard = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard == null) {
+                Toast.makeText(this, "Буфер обмена недоступен.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            clipboard.setPrimaryClip(ClipData.newPlainText("ORGANISM prompt", text));
+            Toast.makeText(this, "Текст скопирован. Вставь его в поле ChatGPT и отправь на сайте. Автоматическая отправка пока не реализована.", Toast.LENGTH_LONG).show();
+        });
+        composer.addView(send, new LinearLayout.LayoutParams(-2, dp(52)));
+        root.addView(composer, new LinearLayout.LayoutParams(-1, -2));
+
         setContentView(root);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         webView.loadUrl("https://chatgpt.com/");
     }
 
