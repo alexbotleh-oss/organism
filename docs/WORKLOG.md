@@ -111,3 +111,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no app database, stored credentials, or user data was reset or migrated.
 - **Status:** PARTIAL — implementation committed; CI and device behavior unverified.
 - **Next:** confirm the exact branch head and CI result, inspect build logs/artifact, then test sign-in from browser through return to ORGANISM on device. Confirm successful token exchange and that no duplicate MainActivity screen appears.
+
+
+## 2026-10-09 — WL-010 — OAuth callback observability plan from device evidence
+
+- **Lifecycle:** STARTED → HANDED_OFF; diagnostic instrumentation not implemented yet.
+- **User goal:** stop inferring the OAuth failure from screenshots. Add an on-device diagnostic journal that records what ORGANISM sends, what it receives, and the exact stage where the browser/app handoff stalls.
+- **Starting point:** branch `fix/zip-import-crash-and-archive-restore`; known OAuth-related commits `7996c271ce66027e9f728be54ab1f7970b260595` (callback page launch attempt) and `4005260fb17dee451caabd5c372146b03c44af1c` (MainActivity reuse). The previous handoff marked CI/device verification pending.
+- **New device evidence:** screenshot at `auth.openai.com` shows the ChatGPT plan-sharing authorization screen with its primary action still showing a spinner. User reports the browser does not return automatically; manually switching back to ORGANISM makes it report successful connection. This indicates a lifecycle/observability gap but does not by itself identify the failing step.
+- **Decision:** instrument the existing OAuth path before making another speculative behavioral change. The diagnostic view/log should capture timestamp, stage/event, direction (app→browser / browser→callback / callback→app / token exchange), safe status/result, callback arrival, timeout/error, and activity resume/deep-link events. Record redacted metadata only; never log authorization codes, access/refresh tokens, cookies, passwords, or full sensitive URLs. Do not log profile email or other unnecessary personal data.
+- **Acceptance evidence:** one attempt produces an ordered trace showing launch request, callback listener state, callback arrival or timeout, state/PKCE validation result (boolean/status only), token-exchange outcome, persisted connection state, and app foreground/resume event. The screen must make the last successful stage and first missing/failed stage obvious and allow the user to copy/export the diagnostic trace.
+- **Verification:** no code changed for this instrumentation request yet; no build or device test performed. Existing database and saved authentication state were not touched.
+- **Status:** PARTIAL / instrumentation pending. Do not describe the OAuth fix as verified.
+- **Next:** inspect the latest branch head, Android manifest, OAuth callback/server code and auth state persistence; then implement redacted stage-by-stage diagnostics, add focused tests, update this handoff and build CI. Test one real authorization attempt on the phone and use the captured trace to locate the fault before changing the OAuth behavior again.
