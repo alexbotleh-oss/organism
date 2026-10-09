@@ -46,3 +46,32 @@ The current Android chat path uses an authenticated HTTP request to `https://api
 ## Current status
 
 Source code is committed on `fix/oauth-diagnostic-trace-20261009`; no CI result or physical-device test has yet been observed for this MVP. Do not call it verified until those checks complete.
+
+## Multi-provider web connector direction (user decision, 2026-10-09)
+
+The user explicitly chose web interfaces as the primary connection method for multiple model providers, while retaining API connectivity as an optional/parallel method. The first web providers to support are:
+
+| Provider | Official web entry |
+|---|---|
+| Claude | https://claude.ai/ |
+| DeepSeek | https://chat.deepseek.com/ |
+| Qwen | https://chat.qwen.ai/ |
+| Gemini | https://gemini.google.com/ |
+| Yandex Alice | https://alice.yandex.ru/ |
+
+This list is the user-provided scope, not a claim that all providers have already been tested or that every site permits embedded WebView authentication.
+
+### Architecture requirements for the next phase
+
+- Keep ORGANISM's own conversation history, context snapshot, memory, experience, provenance and safety rules provider-independent.
+- Add a provider registry and separate web connector entries; do not hard-code provider-specific behavior into the core conversation/memory layer.
+- Each web connector opens the provider's official site and uses explicit manual copy/paste unless a supported, user-authorized integration is separately designed. No DOM/script injection, cookie/session extraction, automated send, or authentication/usage-limit bypass.
+- Keep the existing API/OAuth connector available as an alternative; do not silently switch a user's chosen transport.
+- Record provider, transport (WEB_MANUAL or API), timestamps, prompt/response provenance, user-confirmed import, and verification status for each result. Mark manually imported responses NOT_VERIFIED until independently checked.
+- Provide a provider-selection UI and per-provider status distinguishing OPENED, SIGNED_IN_BY_USER (only if user confirms), PROMPT_COPIED, RESPONSE_IMPORTED, and ERROR; do not label a site connected merely because its landing page opened.
+- Treat availability, sign-in, and WebView compatibility as unverified until tested on device. If a provider blocks WebView or controls do not work, offer official external-browser handoff with the same manual transfer flow.
+- Start with the smallest vertical slice: provider registry + Claude and DeepSeek manual web flow, validate data isolation and import, then add Qwen, Gemini and Alice using the same adapter contract. API path remains untouched by this web rollout.
+
+### Verification boundary
+
+A successful Android build proves compilation only. Each provider needs an on-device check for site loading, user sign-in, text entry, sending, response copy, and explicit import into the intended ORGANISM session. Never claim all five providers work based only on build success.
