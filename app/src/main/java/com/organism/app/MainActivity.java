@@ -74,8 +74,8 @@ public class MainActivity extends Activity {
     void deactivateChatLayout(){if(content.getParent()==root){root.removeView(content);content.setPadding(dp(16),dp(12),dp(16),dp(20));contentScroll.addView(content);root.addView(contentScroll,2,new LinearLayout.LayoutParams(-1,0,1));}}
     void showHome(){clear("Главная");card("Цикл Организма","Я → ORGANISM → GPT → ORGANISM → Я\n\nОрганизм хранит RAW, источники, события, память, связи, опыт и состояние отдельно от модели. Перед каждым запросом Context Engine собирает релевантный контекст.");card("Состояние","Проект: ORGANISM\nПамять: "+db.count("memory_objects")+"\nИсточники: "+db.count("sources")+"\nСобытия: "+db.count("events")+"\nОпыт: "+db.count("experiences")+"\nЗадачи: "+db.count("tasks"));Button c=bt(hasCreds()?"Продолжить с ChatGPT":"Подключить ChatGPT");c.setOnClickListener(v->{if(hasCreds())showChat();else signIn();});content.addView(c);Button imp=bt("Добавить источник");imp.setOnClickListener(v->showImport());content.addView(imp);Button quickSettings=bt("Настройки и экспорт базы");quickSettings.setOnClickListener(v->showSettings());content.addView(quickSettings);}
     void showQuickMenu(){
-        String[] labels={"Подключить / переподключить ChatGPT","Новый диалог","Копировать текущий диалог","Старая общая история","Context Snapshot","Память","Задачи","Источники","Опыт","Проверка импорта","Импорт","База данных","Настройки","Экспорт полного архива"};
-        Runnable[] actions={()->signIn(),()->startNewChat(),()->copyText("История чата",db.chat(activeSessionId)),()->showLegacyChat(),()->showContextDialog(),()->showMemory(),()->showTasks(),()->showSources(),()->showExperience(),()->showImportAudit(),()->showImport(),()->showDatabase(),()->showSettings(),()->backup()};
+        String[] labels={"Подключить / переподключить ChatGPT","Новый диалог","Копировать текущий диалог","Старая общая история","Context Snapshot","Память","Архив импортированных чатов","Задачи","Источники","Опыт","Проверка импорта","Импорт","База данных","Настройки","Экспорт полного архива"};
+        Runnable[] actions={()->signIn(),()->startNewChat(),()->copyText("История чата",db.chat(activeSessionId)),()->showLegacyChat(),()->showContextDialog(),()->showMemory(),()->showImportedChatArchive(),()->showTasks(),()->showSources(),()->showExperience(),()->showImportAudit(),()->showImport(),()->showDatabase(),()->showSettings(),()->backup()};
         new AlertDialog.Builder(this).setTitle("ORGANISM · Дополнительные функции").setItems(labels,(dialog,which)->actions[which].run()).show();
     }
     long ensureActiveSession(){String key=getPrefs().getString("active_session_key","");if(key.isEmpty()){key="SES-"+UUID.randomUUID().toString();getPrefs().edit().putString("active_session_key",key).apply();}return db.ensureSession(key,db.project("ORGANISM"));}
@@ -149,7 +149,67 @@ public class MainActivity extends Activity {
     void showExperience(){clear("Опыт");card("Experience","Опыт не является догмой. Он хранит what happened / tried / worked / failed, confidence и applicability.");content.addView(tv(db.recent("experiences"),13,Color.DKGRAY));}
     void showSources(){clear("Источники");card("Provenance","RAW сохраняется отдельно. Каждый импорт получает source record и checksum.");content.addView(tv(db.recent("sources"),13,Color.DKGRAY));}
     void showTasks(){clear("Задачи");card("Задачи","DONE не устанавливается автоматически как подтверждённое завершение.");content.addView(tv(db.recent("tasks"),13,Color.DKGRAY));}
-    void showImport(){clear("Импорт данных");card("История чатов ChatGPT","Выберите ZIP, скачанный через экспорт данных ChatGPT. Импорт выполняется потоком, чтобы большой архив не загружал целиком оперативную память телефона. Исходный ZIP сохраняется в RAW.");Button file=bt("Выбрать ZIP с историей ChatGPT");file.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("application/zip");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"application/zip","application/x-zip-compressed","application/octet-stream"});startActivityForResult(i,700);});content.addView(file,new LinearLayout.LayoutParams(-1,-2));Button other=bt("Импортировать TXT / MD / PDF");other.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,701);});content.addView(other,new LinearLayout.LayoutParams(-1,-2));Button audit=bt("Проверить результат импорта");audit.setOnClickListener(v->showImportAudit());content.addView(audit,new LinearLayout.LayoutParams(-1,-2));Button url=bt("Импортировать по ссылке");url.setOnClickListener(v->urlDialog());content.addView(url,new LinearLayout.LayoutParams(-1,-2));Button paste=bt("Вставить текст");paste.setOnClickListener(v->pasteDialog());content.addView(paste,new LinearLayout.LayoutParams(-1,-2));Button info=bt("Как работает импорт");info.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Безопасный импорт").setMessage("1. Исходный файл сохраняется отдельно.\n2. ZIP читается потоком, без загрузки всего архива в память.\n3. Беседы разбираются по одной.\n4. Сообщения сохраняются с источником и структурными связями.\n5. Результат можно проверить в аудите импорта.").setPositiveButton("Понятно",null).show());content.addView(info,new LinearLayout.LayoutParams(-1,-2));}
+    void showImport(){clear("Импорт данных");card("История чатов ChatGPT","Выберите ZIP, скачанный через экспорт данных ChatGPT. Импорт выполняется потоком, чтобы большой архив не загружал целиком оперативную память телефона. Исходный ZIP сохраняется в RAW.");Button file=bt("Выбрать ZIP с историей ChatGPT");file.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("application/zip");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"application/zip","application/x-zip-compressed","application/octet-stream"});startActivityForResult(i,700);});content.addView(file,new LinearLayout.LayoutParams(-1,-2));Button other=bt("Импортировать TXT / MD / PDF");other.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,701);});content.addView(other,new LinearLayout.LayoutParams(-1,-2));Button archive=bt("Открыть архив импортированных чатов");archive.setOnClickListener(v->showImportedChatArchive());content.addView(archive,new LinearLayout.LayoutParams(-1,-2));Button audit=bt("Проверить результат импорта");audit.setOnClickListener(v->showImportAudit());content.addView(audit,new LinearLayout.LayoutParams(-1,-2));Button url=bt("Импортировать по ссылке");url.setOnClickListener(v->urlDialog());content.addView(url,new LinearLayout.LayoutParams(-1,-2));Button paste=bt("Вставить текст");paste.setOnClickListener(v->pasteDialog());content.addView(paste,new LinearLayout.LayoutParams(-1,-2));Button info=bt("Как работает импорт");info.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Безопасный импорт").setMessage("1. Исходный файл сохраняется отдельно.\n2. ZIP читается потоком, без загрузки всего архива в память.\n3. Беседы разбираются по одной.\n4. Сообщения сохраняются с источником и структурными связями.\n5. Результат можно проверить в аудите импорта.").setPositiveButton("Понятно",null).show());content.addView(info,new LinearLayout.LayoutParams(-1,-2));}
+    void showImportedChatArchive(){
+        clear("Архив чатов");
+        card("Импортированные разговоры","Это архив исходных разговоров ChatGPT, отдельно от новых диалогов ORGANISM. Поиск выполняется по названию и тексту сообщений; исходники и связи с источником не меняются.");
+        EditText search=new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("Найти разговор или фразу");
+        content.addView(search,new LinearLayout.LayoutParams(-1,-2));
+        Button find=bt("Найти");
+        content.addView(find,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout results=new LinearLayout(this);results.setOrientation(LinearLayout.VERTICAL);
+        content.addView(results,new LinearLayout.LayoutParams(-1,-2));
+        Runnable load=()->{
+            results.removeAllViews();
+            String q=search.getText()==null?"":search.getText().toString().trim();
+            android.database.Cursor c=null;
+            int shown=0;
+            try{
+                c=db.query("SELECT s.id,s.source_name,COALESCE(s.external_id,''),COUNT(m.id),COALESCE(MAX(m.created_at),'') " +
+                    "FROM sources s LEFT JOIN memory_objects m ON m.source_id=s.id AND m.kind='CHAT_MESSAGE' " +
+                    "WHERE s.source_type='CHAT_EXPORT_CONVERSATION' AND (?='' OR s.source_name LIKE ? OR EXISTS " +
+                    "(SELECT 1 FROM memory_objects x WHERE x.source_id=s.id AND x.kind='CHAT_MESSAGE' AND x.content LIKE ?)) " +
+                    "GROUP BY s.id ORDER BY s.id DESC LIMIT 500",
+                    new String[]{q,"%"+q+"%","%"+q+"%"});
+                while(c.moveToNext()){
+                    long sourceId=c.getLong(0);String title=c.getString(1);String external=c.getString(2);
+                    int count=c.getInt(3);
+                    Button item=bt(title+"\n"+count+" сообщений"+(external.isEmpty()?"":" · ID "+external));
+                    item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+                    item.setOnClickListener(v->openImportedConversation(sourceId,title,count));
+                    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(3),0,dp(3));results.addView(item,lp);shown++;
+                }
+            }catch(Exception e){results.addView(tv("Ошибка чтения архива: "+e.getMessage(),13,Color.RED));}
+            finally{if(c!=null)c.close();}
+            if(shown==0)results.addView(tv(q.isEmpty()?"Импортированные разговоры пока не найдены. Проверьте результат импорта.":"Совпадений нет.",13,Color.rgb(91,108,133)));
+            else results.addView(tv("Показано: "+shown+" (максимум 500).",11,Color.rgb(91,108,133)));
+        };
+        find.setOnClickListener(v->load.run());
+        load.run();
+    }
+    void openImportedConversation(long sourceId,String title,int messageCount){
+        StringBuilder transcript=new StringBuilder();
+        android.database.Cursor c=null;int shown=0;boolean more=false;
+        try{
+            c=db.query("SELECT title,content FROM memory_objects WHERE source_id=? AND kind='CHAT_MESSAGE' ORDER BY id ASC LIMIT 3001",new String[]{Long.toString(sourceId)});
+            while(c.moveToNext()){
+                if(shown>=3000){more=true;break;}
+                if(transcript.length()>0)transcript.append("\n\n────────────────────\n\n");
+                transcript.append(c.getString(0)).append("\n").append(c.getString(1));shown++;
+            }
+        }catch(Exception e){transcript.append("Ошибка чтения разговора: ").append(e.getMessage());}
+        finally{if(c!=null)c.close();}
+        if(more)transcript.append("\n\n[Показаны первые 3000 сообщений; в базе могут быть дополнительные сообщения.]");
+        TextView body=tv(transcript.length()==0?"Сообщения не найдены.":transcript.toString(),13,Color.rgb(30,36,48));
+        body.setTextIsSelectable(true);body.setPadding(dp(16),dp(12),dp(16),dp(12));
+        ScrollView scroll=new ScrollView(this);scroll.addView(body);
+        scroll.setFillViewport(false);
+        new AlertDialog.Builder(this).setTitle(title+" · "+shown+" сообщений").setView(scroll)
+            .setPositiveButton("Закрыть",null).setNeutralButton("Копировать",(d,w)->copyText(title,transcript.toString())).show();
+    }
+
     void showImportAudit(){
         clear("Проверка импорта");
         card("Контроль импорта чатов","Здесь показываются реальные записи SQLite, а не только сообщение об успешном импорте. Сравните количество узлов и сообщений с исходным экспортом.");
