@@ -209,3 +209,15 @@ The build is verified; device behavior is not. Next action is install/test this 
 - Latest documentation record: WL-017, commit `7977d52d473db78e97c913661866a94f7bfbc9e5`.
 - A combined GitHub commit-status query returned no status checks for the latest application commit. This is **not** evidence of a successful build; CI remains pending/unobserved.
 - **Next:** confirm an Android build for the latest branch head. If no automatic workflow is running, inspect the repository's workflow configuration and trigger/use the existing build process rather than claiming success. Then test on the existing phone without clearing data.
+
+
+## CI correction — ChatGPT Web connector (2026-10-09)
+
+The prior handoff said CI was pending because the first status helper returned no checks. That conclusion was incorrect: the helper's workflow-run query only includes pull-request-triggered runs. Directly querying the repository Actions run list found successful push builds.
+
+- Latest successful build run: 37973127262, branch `fix/oauth-diagnostic-trace-20261009`, commit `69efeb2c32a575c43e336a348b8c73feb91963f5`.
+- Artifact: `organism-debug-apk`, ID 11638116459, size 11,353,155 bytes, archive digest `sha256:ac28545249d4dfc4b73936e6993b5b818fbf18e9630921729f7d1067aee5737e`.
+- Earlier app commit `11c27e21c8fb` had a failed build (run 37972935277); later changes corrected the source and the latest branch-head build passed.
+- **Current truth:** code compiles and the debug APK artifact was uploaded. This does not prove WebView login/clipboard flow on a real phone.
+- Work-log correction: WL-018, commit `a396d01f4373a0b5bd42558a7083cdcb554b2c45`.
+- **Next:** download the artifact from the successful Actions run and install it as an update without clearing app data. Test the WebView login and manual prompt/response flow once. If embedded WebView login is blocked, stop and use an official browser handoff rather than bypassing platform controls.
