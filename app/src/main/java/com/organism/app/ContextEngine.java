@@ -77,7 +77,7 @@ public final class ContextEngine {
 
     private List<Candidate> experienceCandidates(String q,long project){
         ArrayList<Candidate> a=new ArrayList<>();
-        Cursor c=db.query("SELECT logical_id,what_happened,what_was_tried,what_worked,what_failed,confidence,experience_type,applicability_json,project_id,task_id FROM experiences WHERE project_id=? OR project_id IS NULL ORDER BY updated_at DESC LIMIT 120",new String[]{""+project});
+        Cursor c=db.query("SELECT logical_id,what_happened,what_was_tried,what_worked,what_failed,confidence,experience_type,applicability_json,project_id,task_id FROM experiences WHERE (project_id=? OR project_id IS NULL) AND experience_type IN ('POSITIVE','NEGATIVE') ORDER BY updated_at DESC LIMIT 120",new String[]{""+project});
         while(c.moveToNext()){
             String blob=nvl(c.getString(1),"")+" "+nvl(c.getString(2),"")+" "+nvl(c.getString(3),"")+" "+nvl(c.getString(4),"");
             double lexical=overlap(q,blob.toLowerCase(Locale.ROOT));
