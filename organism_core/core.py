@@ -383,7 +383,6 @@ class OrganismCore:
                 outcome = str(item.get("whatWorked") or item.get("whatFailed") or "").strip()
                 title = str(item.get("title") or item.get("name") or "Imported experience candidate")
                 if not action or not outcome:
-                    report["unmapped_experiences"] += 1
                     continue
                 exp_raw = experience_raw_by_index[experience_index]
                 exp_id = _id("exp")
