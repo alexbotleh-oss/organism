@@ -27,6 +27,7 @@ public class ImportPipeline {
             String lower=name.toLowerCase(Locale.ROOT);String text;
             if(lower.endsWith(".pdf")||"application/pdf".equals(type))text=pdf(bytes);
             else text=decodeText(bytes);
+            bytes=null; // release the original 37+ MB byte buffer before parsing the export
             if(isChatGptHtmlExport(name,type,text)){
                 importChatHtmlExport(name,uri.toString(),text);
                 l.done("ChatGPT HTML обработан: "+name+"; диалоги разобраны на отдельные сообщения.");
@@ -110,20 +111,24 @@ public class ImportPipeline {
     private interface JsonObjectHandler { void handle(String jsonObject) throws Exception; }
 
     private void parseChatJson(String name,String json,long rawSourceId)throws Exception{
+        parseChatJsonRange(name,json,0,json.length(),rawSourceId);
+    }
+
+    private void parseChatJsonRange(String name,String json,int start,int end,long rawSourceId)throws Exception{
         final long project=db.project("ORGANISM");
-        forEachTopLevelJsonObject(json, objectText ->
+        forEachTopLevelJsonObject(json,start,end, objectText ->
                 parseChatConversation(name,new JSONObject(objectText),rawSourceId,project));
     }
 
     // Stream one conversation object at a time. Parsing the whole 35+ MB export as a JSONArray
     // creates a second huge object graph and can exhaust Android's heap.
-    private void forEachTopLevelJsonObject(String json,JsonObjectHandler handler)throws Exception{
-        int startArray=json.indexOf('[');
-        if(startArray<0)throw new JSONException("В ChatGPT JSON не найден массив диалогов");
+    private void forEachTopLevelJsonObject(String json,int startArray,int endExclusive,JsonObjectHandler handler)throws Exception{
+        if(startArray<0||startArray>=endExclusive||json.charAt(startArray)!='[')
+            throw new JSONException("В ChatGPT JSON не найден массив диалогов");
         boolean inString=false,escaped=false;
         int arrayDepth=0,objectDepth=0,objectStart=-1;
         boolean closed=false;
-        for(int i=startArray;i<json.length();i++){
+        for(int i=startArray;i<endExclusive;i++){
             char c=json.charAt(i);
             if(inString){
                 if(escaped)escaped=false;
@@ -161,19 +166,19 @@ public class ImportPipeline {
     }
 
     private void importChatHtmlExport(String name,String path,String html)throws Exception{
-        String json=extractChatGptJsonData(html);
-        if(json==null)throw new IOException("В HTML не найден массив jsonData из экспорта ChatGPT");
+        int[] jsonRange=findChatGptJsonDataRange(html);
+        if(jsonRange==null)throw new IOException("В HTML не найден массив jsonData из экспорта ChatGPT");
         String checksum=sha(html);
         long rawSource=db.source("CHAT_EXPORT_RAW",name,path,null,checksum);
         writeRaw(name,html);
-        parseChatJson(name,json,rawSource);
+        parseChatJsonRange(name,html,jsonRange[0],jsonRange[1],rawSource);
         long project=db.project("ORGANISM");
         db.event("CHAT_HTML_EXPORT_IMPORTED","HTML-экспорт ChatGPT разобран потоково: "+name,project,0,rawSource,"STATED","VERIFIED");
         appendEvent("CHAT_HTML_EXPORT_IMPORTED",name,rawSource);
         writeSnapshot(project);
     }
 
-    private String extractChatGptJsonData(String html)throws IOException{
+    private int[] findChatGptJsonDataRange(String html)throws IOException{
         String[] markers={"var jsonData","let jsonData","const jsonData"};
         int marker=-1;
         for(String m:markers){marker=html.indexOf(m);if(marker>=0)break;}
@@ -194,7 +199,7 @@ public class ImportPipeline {
             }
             if(c=='"'){inString=true;continue;}
             if(c=='[')depth++;
-            else if(c==']'&&--depth==0)return html.substring(start,i+1);
+            else if(c==']'&&--depth==0)return new int[]{start,i+1};
         }
         throw new IOException("Массив jsonData в HTML-экспорте обрезан");
     }
