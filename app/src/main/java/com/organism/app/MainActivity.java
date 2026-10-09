@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
         status=tv(hasCreds()?"ChatGPT: подключён":"ChatGPT: не подключён",12,Color.DKGRAY);top.addView(status);
         Button quick=bt("⋮");quick.setContentDescription("Быстрые действия");quick.setOnClickListener(v->showQuickMenu());top.addView(quick,new LinearLayout.LayoutParams(48,48));
         root.addView(top);
-        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(14,4,14,80);
+        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(14),dp(4),dp(14),dp(16));
         ScrollView scroll=new ScrollView(this);scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         navScroll=new HorizontalScrollView(this);LinearLayout nav=new LinearLayout(this);nav.setPadding(4,2,4,4);
         String[][] items={{"Главная","home"},{"Чат","chat"},{"Память","memory"},{"Импорт","import"},{"База","database"},{"Настройки","settings"}};
