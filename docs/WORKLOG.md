@@ -235,3 +235,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Failure history:** app commit `11c27e21c8fb` had a failed build (run 37972935277); later application commits and the latest head passed CI. Preserve this failure in the record.
 - **Boundary:** CI proves compilation and artifact upload, not WebView login or phone behavior. No user data, database, archive, or saved credentials were changed.
 - **Next:** user installs the artifact from the successful Actions run and tests WebView login plus manual prompt/response once. If embedded login is blocked, do not bypass platform protections; use official browser handoff.
+
+
+## 2026-10-09 — WL-019 — Official browser fallback after WebView interaction failure
+
+- **Lifecycle:** CHANGED → CI PENDING → DEVICE TEST PENDING.
+- **User device feedback:** ChatGPT page loads in the embedded WebView and accepts typed text, but tapping the right-hand control does not send the message and appears to change/refresh the starter prompt; the left pale-brown control does not respond. This is evidence of broken/unusable interaction in the embedded page, not proof of the precise platform cause.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`; preceding branch head `0999e9f4bd6ee8168419548684102617ecd33ed3`; source `PlatformWebActivity.java`.
+- **Change:** commit `4d30ca7a61edbbe3c6346b46368141e67d134df6` adds a visible **«Открыть в браузере»** button that opens the official `https://chatgpt.com/` URL using Android's normal external-browser intent, plus a short explanation that prompt/response transfer remains manual. Existing WebView, clipboard, preview, and API/OAuth code remain unchanged.
+- **Reason:** provide a safe supported fallback when ChatGPT's own interactive controls do not work inside this embedded WebView. Do not inject JavaScript, click site controls, read DOM/cookies, or bypass account/usage limits.
+- **Verification:** GitHub source update succeeded; file content was fetched back and includes the fallback button/handler. CI for this new commit has not yet been checked. No device test of the new button has occurred.
+- **Data safety:** no database, imported archive, saved credentials, or app preferences were reset, migrated, or deleted. The external browser opens only the official HTTPS URL; the user must copy/paste manually.
+- **Status:** PARTIAL. Source change committed; build and device behavior pending.
+- **Next action:** confirm CI for the updated branch head. If successful, install the new APK over the existing app without clearing data; tap «Открыть в браузере» and try one harmless test message. Record browser behavior separately from CI.
