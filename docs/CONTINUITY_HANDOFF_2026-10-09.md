@@ -274,3 +274,11 @@ The prior handoff said CI was pending because the first status helper returned n
 - **Verification:** no CI result or on-device keyboard/attachment test yet for this commit.
 - **Data safety:** no database/history/archive/credential reset or migration.
 - **Next action:** inspect CI for the latest branch head; if successful, test composer/keyboard/scroll and attachment chooser on phone without clearing existing data. Then implement only provider interaction that can be supported and reliably verified.
+
+## Handoff — Mandatory Android UI standard (2026-10-09)
+
+- User explicitly requires Android design standards to apply across the **whole application**, not only the current WebView: safe margins, top/bottom spacing, usable button sizes, and correct composition are baseline requirements.
+- New standard: `docs/ANDROID_UI_STANDARD_v1.0.md` (commit `43ce4ef35b697cb60d0fce690841a402c8ffd847`). Project instructions now require reading and applying it before every Android UI change/release (commit `c8530c0b4d3a76e79aaf78a99a9cc763f81fc916`).
+- The standard is based on official Android guidance: handle window insets and edge-to-edge system bars, preserve reachability under keyboard/system UI, use at least 48×48 dp touch targets and consistent dp/sp spacing, test adaptive states, and keep build evidence separate from device verification.
+- This is a durable project rule, not a claim that every existing screen has already been audited. The latest WebView safe-area code commit `08cb9dafdbc2eae918808886adfa310b178d5a6e` still needs its CI result and real-device validation.
+- Next action: check CI for latest source/UI commit; then conduct a screen-by-screen audit of the app using the standard and consolidate necessary fixes into a coherent UI pass. Do not ship based only on compilation; do not reset or alter user data during UI work.
