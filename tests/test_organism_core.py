@@ -164,13 +164,16 @@ class OrganismCoreTests(unittest.TestCase):
             "events": [{"id": "old-event-1", "type": "IMPORT"}],
             "tasks": [{"id": "T1", "projectId": "PRJ001", "title": "Audit", "status": "OPEN"}],
         }
-        report = self.core.import_legacy_snapshot(snapshot)
+        raw_json = '{\n  "version": 1,\n  "projects": [{"id": "PRJ001"}]\n}\n'
+        report = self.core.import_legacy_snapshot(snapshot, raw_text=raw_json)
         self.assertEqual(report["projects"], 1)
         self.assertEqual(report["messages_preserved"], 2)
         self.assertEqual(report["experience_candidates"], 1)
         self.assertEqual(report["unmapped_experiences"], 1)
         snap = self.core.export_snapshot()
         self.assertEqual(len(snap["source_documents"]), 1 + 1 + 2 + 1)
+        migrated_source = next(x for x in snap["source_documents"] if x["id"] == report["source_id"])
+        self.assertEqual(migrated_source["raw_text"], raw_json)
         self.assertEqual(snap["experiences"][0]["verification_status"], "unverified")
         self.assertEqual(snap["experiences"][0]["experience_status"], "candidate")
         self.assertEqual(len(snap["relations"]), 1)
