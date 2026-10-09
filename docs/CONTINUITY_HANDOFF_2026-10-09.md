@@ -167,3 +167,14 @@ The build is verified; device behavior is not. Next action is install/test this 
 - Work-log: WL-013. Existing DB, imported archive, saved credentials and auth state were not reset or migrated.
 - **Current status:** source committed; CI for this exact commit pending; no device verification of this change.
 - **Next:** check Android CI run for exact commit `8396fc6b29661f14bbe80dd16fbb86f6a91b808f`. If green, provide its artifact and perform one controlled attempt, allowing the complete 120-second wait; copy the full trace. Use the first terminal diagnostic event to decide whether the next investigation is callback delivery or token exchange.
+
+
+## 2026-10-09 — Mobile-first event observer decision (WL-014)
+
+- User confirmed that Android phone is the first target because it is always with them; a PC client or PC-hosted executor is future scope.
+- Architecture decision document: docs/MOBILE_FIRST_EVENT_OBSERVER_DECISION_v0.1.md (commit eb190254ff1f25543175f13ba14baa7572568a3d). Work-log entry: WL-014 (commit a997c0fb78f2800120f176569f474c0456f7c7e4).
+- Proposed subsystem: event observer/dispatcher connects verified GitHub Actions state to ORGANISM task/memory context and Android notifications. Initial scope includes success/failure/cancelled/unavailable states, run link, branch/commit context, deduplication and durable event history.
+- Keep Android client, event/state/memory model and GitHub connector separable for future devices. Do not build PC infrastructure now.
+- Implementation decision still open: webhook plus receiver vs periodic polling; FCM/push is a candidate only. Android background execution alone is not a guaranteed always-on observer.
+- Safety: observing/reporting does not grant automatic permission to edit code, commit or perform destructive operations. This is a documented direction only; no application code, DB, credentials or user data changed; no tests/build/device test performed for this decision.
+- Current next step remains: check CI run 37955125073 for OAuth diagnostic commit 8396fc6b29661f14bbe80dd16fbb86f6a91b808f. Then define observer acceptance criteria and choose the initial GitHub monitoring method before implementation.
