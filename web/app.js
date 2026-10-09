@@ -107,7 +107,16 @@ export:function(){var blob=new Blob([JSON.stringify(state,null,2)],{type:"applic
 reset:function(){if(confirm("Удалить локальную тестовую базу?")){localStorage.removeItem(KEY);location.reload()}}
 };
 document.getElementById("fileInput").addEventListener("change",async function(e){
- var f=e.target.files[0];if(!f)return;var text=await f.text(),n=createExperienceFromImport(text,f.name),rawSaved=false;
+ var f=e.target.files[0];if(!f)return;var text=await f.text(),isJson=/\.json$/i.test(f.name);
+ if(isJson){
+  try{
+   var snapshot=JSON.parse(text),result=await corePost("/api/core/import-legacy",{source_name:f.name,snapshot:snapshot,raw_text:text});
+   state.sources.push({id:uid("SRC"),type:"JSON_BACKUP",title:f.name,content:text.slice(0,200000),createdAt:Date.now()});save();
+   var report=result.result||{};toast("Миграция завершена: проекты "+(report.projects||0)+", кандидаты опыта "+(report.experience_candidates||0)+", не сопоставлено "+(report.unmapped_experiences||0)+". Опыт не повышен до проверенного.");
+  }catch(err){toast("Не удалось мигрировать JSON: "+err.message)}
+  setView("knowledge");e.target.value="";return;
+ }
+ var n=createExperienceFromImport(text,f.name),rawSaved=false;
  try{await persistCoreText(f.name,text,"chat_export","unknown","external");rawSaved=true}catch(err){console.warn("CORE RAW import failed:",err.message)}
  toast(rawSaved?"RAW сохранён в CORE; фрагментов-кандидатов: "+n+" (это ещё не опыт).":"Локальный импорт сохранён; CORE RAW недоступен. Кандидатов: "+n);
  setView("knowledge");e.target.value="";
