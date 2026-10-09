@@ -48,12 +48,51 @@ public class ImportPipeline {
         String normalized=text.replace("\r","").trim();
         if(normalized.isEmpty()){db.event("ERROR","Источник пустой: "+name,project,0,src,"UNKNOWN","NOT_VERIFIED");return;}
         String title=title(name,normalized);
-        long mem=db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
-        // Do not apply recipe-keyword heuristics to arbitrary imports or chat history.
-        // Semantic extraction belongs to the provenance-aware M1 pipeline and must cite source spans.
         writeRaw(name,normalized);
+        // A role-labelled exported transcript must not become one giant NOTE.
+        // Preserve the original source, then create individually retrievable message records.
+        int importedMessages=ingestRoleTranscript(name,normalized,project,src);
+        if(importedMessages==0){
+            // Arbitrary text stays a source-backed note; no keyword-based semantic guessing.
+            db.memory("NOTE",title,normalized,project,0,src,"STATED","NOT_VERIFIED",0.5);
+        }else{
+            db.event("CHAT_IMPORTED","Диалоговый текст разобран на сообщения: "+name+"; messages="+importedMessages,project,0,src,"STATED","VERIFIED");
+            db.memory("CONTEXT_INDEX",title,"CHAT TRANSCRIPT INDEX v1\\nsource_id: "+src+"\\nmessage_count: "+importedMessages+"\\nraw_source_preserved: true\\nsemantic_extraction: pending\\n",project,0,src,"STATED","NOT_VERIFIED",0.5);
+        }
         appendEvent("IMPORT",name,src);
         writeSnapshot(project);
+    }
+
+    private int ingestRoleTranscript(String name,String text,long project,long source)throws Exception{
+        String[] lines=text.split("\\n",-1);
+        int userMarkers=0,assistantMarkers=0;
+        for(String line:lines){String role=line.trim().toLowerCase(Locale.ROOT);if("user".equals(role))userMarkers++;else if("chatgpt".equals(role)||"assistant".equals(role))assistantMarkers++;}
+        // Conservative detection: require a repeated role-labelled structure, not one incidental word.
+        if(userMarkers<3||assistantMarkers<3||Math.min(userMarkers,assistantMarkers)<Math.max(3,Math.max(userMarkers,assistantMarkers)/8))return 0;
+        String conversationTitle=title(name,text);
+        StringBuilder body=new StringBuilder();String role=null;int imported=0;int startLine=1;
+        for(int i=0;i<lines.length;i++){
+            String line=lines[i].trim();String lower=line.toLowerCase(Locale.ROOT);
+            String nextRole="user".equals(lower)?"USER":("chatgpt".equals(lower)||"assistant".equals(lower))?"ASSISTANT":null;
+            if(nextRole!=null){
+                if(role!=null&&body.toString().trim().length()>0){
+                    String content=body.toString().trim();
+                    String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+i+"]\\nrole: "+role+"\\n"+content;
+                    db.memory("CHAT_MESSAGE",conversationTitle+" ["+role+" #"+(imported+1)+"]",msg,project,0,source,"STATED","NOT_VERIFIED",0.5);
+                    db.event("CHAT_MESSAGE_IMPORTED","source="+name+"; role="+role+"; sequence="+(imported+1)+"; line_start="+startLine+"; line_end="+i,project,0,source,"STATED","NOT_VERIFIED");
+                    imported++;
+                }
+                role=nextRole;body.setLength(0);startLine=i+2;
+            }else if(role!=null){if(body.length()>0)body.append("\\n");body.append(lines[i]);}
+        }
+        if(role!=null&&body.toString().trim().length()>0){
+            String content=body.toString().trim();
+            String msg="[TRANSCRIPT_MESSAGE source_id="+source+" line_start="+startLine+" line_end="+lines.length+"]\\nrole: "+role+"\\n"+content;
+            db.memory("CHAT_MESSAGE",conversationTitle+" ["+role+" #"+(imported+1)+"]",msg,project,0,source,"STATED","NOT_VERIFIED",0.5);
+            db.event("CHAT_MESSAGE_IMPORTED","source="+name+"; role="+role+"; sequence="+(imported+1)+"; line_start="+startLine+"; line_end="+lines.length,project,0,source,"STATED","NOT_VERIFIED");
+            imported++;
+        }
+        return imported;
     }
 
     private void importZip(String name,byte[] bytes)throws Exception{
