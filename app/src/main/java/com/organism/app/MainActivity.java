@@ -1,6 +1,8 @@
 package com.organism.app;
 
 import android.app.*;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.os.*;
 import android.content.*;
 import android.graphics.Color;
@@ -39,6 +41,7 @@ public class MainActivity extends Activity {
     ServerSocket callbackSocket; String pendingState,pendingNonce,pendingVerifier,pendingRedirect;
     String accessToken="",refreshToken="",idToken="",model=""; long expiresAt=0;
     ArrayList<String> modelSlugs=new ArrayList<>(),modelNames=new ArrayList<>();
+    static final int VOICE_PERMISSION_REQUEST=4202, VOICE_INPUT_REQUEST=4203;
 
     @Override public void onCreate(Bundle b){super.onCreate(b);WindowCompat.setDecorFitsSystemWindows(getWindow(),false);getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);try{AppDiagnostics.record(this,"APP","STARTED","Application startup requested");db=new Db(this);activeSessionId=ensureActiveSession();importer=new ImportPipeline(this,db);contextEngine=new ContextEngine(db);experienceEngine=new ExperienceEngine(db);loadCreds();buildShell();showHome();AppDiagnostics.record(this,"APP","STARTUP_OK","Database and core engines initialized");}catch(Throwable t){AppDiagnostics.record(this,"APP","STARTUP_FAILED",t.getClass().getName()+": "+String.valueOf(t.getMessage()));showStartupError(t);}}
     void showStartupError(Throwable t){Log.e("ORGANISM","Startup failure",t);TextView v=new TextView(this);v.setText("ОРГАНИЗМ не смог запуститься.\n\nОшибка: "+t.getClass().getName()+"\n"+String.valueOf(t.getMessage())+"\n\nЗакройте приложение и сообщите этот текст разработчику.");v.setTextSize(16);v.setTextColor(Color.rgb(30,36,48));v.setPadding(32,48,32,48);v.setTextIsSelectable(true);ViewCompat.setOnApplyWindowInsetsListener(v,(view,insets)->{androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());view.setPadding(32,bars.top+32,32,bars.bottom+32);return insets;});setContentView(v);ViewCompat.requestApplyInsets(v);}
@@ -118,6 +121,7 @@ public class MainActivity extends Activity {
         chatInput.setTextSize(16);
         chatInput.setBackgroundColor(Color.TRANSPARENT);
         composer.addView(chatInput,new LinearLayout.LayoutParams(-1,-2));
+        Button voice=bt("🎙 Голосовой ввод");voice.setOnClickListener(v->startVoiceInput());composer.addView(voice,new LinearLayout.LayoutParams(-1,-2));
         Button send=bt("Отправить через ORGANISM → GPT");
         send.setOnClickListener(v->send());
         composer.addView(send,new LinearLayout.LayoutParams(-1,-2));
@@ -132,6 +136,36 @@ public class MainActivity extends Activity {
         else{
             TextView local=tv("ORGANISM работает локально. Подключите ChatGPT через меню •••, чтобы отправлять запросы модели.",13,Color.rgb(91,108,133));
             content.addView(local,new LinearLayout.LayoutParams(-1,-2));
+        }
+    }
+    void startVoiceInput(){
+        AppDiagnostics.record(this,"VOICE_INPUT","REQUESTED","Native speech-to-text input requested");
+        if(android.os.Build.VERSION.SDK_INT>=23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            AppDiagnostics.record(this,"VOICE_INPUT","MIC_PERMISSION_REQUIRED","Requesting Android microphone permission");
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},VOICE_PERMISSION_REQUEST);
+            return;
+        }
+        launchVoiceRecognizer();
+    }
+    void launchVoiceRecognizer(){
+        try{
+            Intent intent=new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE,java.util.Locale.getDefault());
+            intent.putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT,"Говорите — ORGANISM преобразует речь в текст");
+            startActivityForResult(intent,VOICE_INPUT_REQUEST);
+            AppDiagnostics.record(this,"VOICE_INPUT","RECOGNIZER_LAUNCHED","Android speech recognizer launched");
+        }catch(Exception e){
+            AppDiagnostics.record(this,"VOICE_INPUT","RECOGNIZER_FAILED",e.getClass().getName()+": "+String.valueOf(e.getMessage()));
+            toast("Голосовой ввод недоступен: "+e.getClass().getSimpleName());
+        }
+    }
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        if(requestCode==VOICE_PERMISSION_REQUEST){
+            boolean granted=grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED;
+            AppDiagnostics.record(this,"VOICE_INPUT","MIC_PERMISSION_RESULT",granted?"granted":"denied");
+            if(granted)launchVoiceRecognizer();else toast("Для голосового ввода нужно разрешить доступ к микрофону.");
         }
     }
     void showContextDialog(){
@@ -284,7 +318,7 @@ public class MainActivity extends Activity {
     }
     void urlDialog(){EditText e=new EditText(this);e.setHint("https://…");new AlertDialog.Builder(this).setTitle("Импорт URL").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Импортировать",(d,w)->{String u=e.getText().toString().trim();if(!u.isEmpty())importer.importUrl(u,new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
     void pasteDialog(){EditText e=new EditText(this);e.setMinLines(10);e.setGravity(Gravity.TOP);new AlertDialog.Builder(this).setTitle("Вставить текст").setView(e).setNegativeButton("Отмена",null).setPositiveButton("Сохранить",(d,w)->{importer.importText("Вставленный текст",e.getText().toString(),new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showDatabase();});}public void fail(String m){main.post(()->toast("Ошибка: "+m));}});}).show();}
-    @Override protected void onActivityResult(int req,int res,Intent data){super.onActivityResult(req,res,data);if((req==700||req==701)&&res==RESULT_OK&&data!=null&&data.getData()!=null){final Uri uri=data.getData();try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}cardImportProgress();importer.importUri(uri,new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showImportAudit();});}public void fail(String m){main.post(()->new AlertDialog.Builder(MainActivity.this).setTitle("Импорт не завершён").setMessage(m+"\n\nИсходный файл не удалён. Можно повторить импорт или прислать этот текст ошибки.").setPositiveButton("Понятно",null).show());}});}} 
+    @Override protected void onActivityResult(int req,int res,Intent data){super.onActivityResult(req,res,data);if(req==VOICE_INPUT_REQUEST){if(res==RESULT_OK&&data!=null){ArrayList<String> results=data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);if(results!=null&&!results.isEmpty()&&chatInput!=null){String spoken=results.get(0);String before=chatInput.getText().toString();chatInput.setText(before.isEmpty()?spoken:before+" "+spoken);chatInput.setSelection(chatInput.getText().length());AppDiagnostics.record(this,"VOICE_INPUT","TRANSCRIPTION_RECEIVED","chars="+spoken.length());}else AppDiagnostics.record(this,"VOICE_INPUT","EMPTY_TRANSCRIPTION","Recognizer returned no text");}else AppDiagnostics.record(this,"VOICE_INPUT","CANCELLED","Speech recognizer cancelled or failed");return;}if((req==700||req==701)&&res==RESULT_OK&&data!=null&&data.getData()!=null){final Uri uri=data.getData();try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}cardImportProgress();importer.importUri(uri,new ImportPipeline.Listener(){public void done(String m){main.post(()->{toast(m);showImportAudit();});}public void fail(String m){main.post(()->new AlertDialog.Builder(MainActivity.this).setTitle("Импорт не завершён").setMessage(m+"\n\nИсходный файл не удалён. Можно повторить импорт или прислать этот текст ошибки.").setPositiveButton("Понятно",null).show());}});}} 
     void cardImportProgress(){clear("Импорт выполняется");card("Обрабатываем архив","Не закрывайте приложение. Большие истории могут обрабатываться несколько минут. Исходный файл не изменяется.");}
     void showSettings(){clear("Настройки");card("ChatGPT","Sign in with ChatGPT. API key не нужен. Доступ к чатам ChatGPT не предоставляется: ORGANISM ведёт собственную историю и базу.");Button c=bt(hasCreds()?"Переподключить":"Подключить ChatGPT");c.setOnClickListener(v->signIn());content.addView(c);Button diagnostics=bt("Журнал диагностики авторизации");diagnostics.setOnClickListener(v->showAuthDiagnostics());content.addView(diagnostics);Button out=bt("Выйти из ChatGPT");out.setOnClickListener(v->{clearCreds();showSettings();});content.addView(out);Button archive=bt("Экспорт полного архива (чаты + память + файлы)");archive.setOnClickListener(v->backupArchive());content.addView(archive);Button backup=bt("Экспорт только базы SQLite");backup.setOnClickListener(v->backup());content.addView(backup);card("Переносимость","Полный архив содержит SQLite и внутренние файлы RAW/событий. Экспорт уже реализуется как единый пакет; восстановление архива на другом устройстве будет отдельным проверяемым шагом.");card("Защита","Удаление памяти проходит через рефлекс защиты; RAW и события не заменяются кратким резюме. Удаление критической памяти автоматически не каскадирует связи.");}
     void showAppDiagnostics(){
