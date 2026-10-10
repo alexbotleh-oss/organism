@@ -440,3 +440,11 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Verification:** GitHub read-back confirms source changes. The workflow for latest source commit `8ef0a200cafed534c25ac2849d2b86815ba80141` was in progress at inspection; no successful build for the final commit is claimed yet. No physical-device test has been run.
 - **Status:** PARTIAL / NOT DEVICE-VERIFIED.
 - **Next action:** wait for CI on the exact latest source commit, fix any compile failures, then test on existing phone installation: app diagnostic copy, ChatGPT Web screenshot picker, microphone permission grant/deny, native speech input, voice-assistant entrypoint parity, and response latency with before/after measurements. Preserve all existing user data.
+
+
+### WL-036 addendum — response freeze instrumentation and main-thread reduction
+
+- **Source commit:** `464dabc1eeb4517ae8f4160d79165f1b76c90ebc`.
+- Moved the post-response `db.chat(activeSessionId)` history query out of the UI callback onto the existing worker thread. The UI callback now receives the prepared transcript and measures `TextView.setText` duration.
+- Persistent diagnostics now include total elapsed time until response saved, history-query milliseconds, render milliseconds, displayed character count, and a `SLOW_CHAT_RENDER` event when rendering takes at least 250 ms. This reduces one known main-thread workload and gathers evidence, but does not prove the freeze is fixed; other synchronous work and long transcript rendering remain possible.
+- Exact-source CI for this commit is running; physical-device performance remains unverified.
