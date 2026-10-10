@@ -21,6 +21,11 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.util.Log;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Locale;
 
 public class PlatformWebActivity extends Activity {
     public static final String EXTRA_PROMPT = "com.organism.app.PLATFORM_WEB_PROMPT";
@@ -29,6 +34,45 @@ public class PlatformWebActivity extends Activity {
     private String prompt = "";
     private static final int FILE_CHOOSER_REQUEST = 4107;
     private ValueCallback<Uri[]> pendingFileChooser;
+    private final ArrayList<String> diagnosticEvents = new ArrayList<>();
+    private static final int MAX_DIAGNOSTIC_EVENTS = 80;
+    private int chooserAttempt = 0;
+
+    private void recordDiagnostic(String event) {
+        String line = new SimpleDateFormat("HH:mm:ss.SSS", Locale.ROOT).format(new Date()) + " " + event;
+        diagnosticEvents.add(line);
+        if (diagnosticEvents.size() > MAX_DIAGNOSTIC_EVENTS) diagnosticEvents.remove(0);
+        Log.i("ORGANISM-WebDiag", line);
+    }
+
+    private void showDiagnostics() {
+        StringBuilder report = new StringBuilder("ORGANISM · диагностика вложений/WebView\\n");
+        report.append("Версия Android: ").append(android.os.Build.VERSION.RELEASE)
+                .append(" (SDK ").append(android.os.Build.VERSION.SDK_INT).append(")\\n")
+                .append("WebView: ").append(android.webkit.WebView.getCurrentWebViewPackage() == null
+                        ? "не определён" : android.webkit.WebView.getCurrentWebViewPackage().versionName).append("\\n")
+                .append("Попыток выбора файла: ").append(chooserAttempt).append("\\n\\n");
+        if (diagnosticEvents.isEmpty()) report.append("Событий пока нет.");
+        else for (String event : diagnosticEvents) report.append(event).append('\\n');
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        TextView body = new TextView(this);
+        body.setText(report.toString());
+        body.setTextIsSelectable(true);
+        body.setTextSize(12);
+        body.setPadding(dp(12), dp(12), dp(12), dp(12));
+        scroll.addView(body);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Диагностика ORGANISM")
+                .setView(scroll)
+                .setNegativeButton("Закрыть", null)
+                .setPositiveButton("Копировать отчёт", (dialog, which) -> {
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (clipboard != null) {
+                        clipboard.setPrimaryClip(ClipData.newPlainText("ORGANISM diagnostics", report.toString()));
+                        Toast.makeText(this, "Отчёт скопирован. В нём нет адресов выбранных файлов.", Toast.LENGTH_LONG).show();
+                    }
+                }).show();
+    }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -56,6 +100,12 @@ public class PlatformWebActivity extends Activity {
         title.setTextColor(Color.rgb(35, 43, 58));
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        Button diagnostics = new Button(this);
+        diagnostics.setText("Диагностика");
+        diagnostics.setAllCaps(false);
+        diagnostics.setMinHeight(dp(48));
+        diagnostics.setOnClickListener(v -> showDiagnostics());
+        header.addView(diagnostics, new LinearLayout.LayoutParams(-2, -2));
         Button back = new Button(this);
         back.setText("Назад");
         back.setAllCaps(false);
@@ -76,20 +126,40 @@ public class PlatformWebActivity extends Activity {
         // Android grants access to user-selected content:// URIs. Keep file:// disabled.
         settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                recordDiagnostic("WEBVIEW page started: " + safeHost(url));
+            }
+            @Override public void onPageFinished(WebView view, String url) {
+                recordDiagnostic("WEBVIEW page finished: " + safeHost(url));
+            }
+            @Override public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
+                    android.webkit.WebResourceError error) {
+                if (request.isForMainFrame()) recordDiagnostic("WEBVIEW main-frame error code="
+                        + error.getErrorCode() + " description=" + error.getDescription());
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePathCallback,
                     FileChooserParams fileChooserParams) {
+                chooserAttempt++;
+                recordDiagnostic("FILE_CHOOSER requested attempt=" + chooserAttempt
+                        + " mode=" + fileChooserParams.getMode()
+                        + " acceptTypes=" + java.util.Arrays.toString(fileChooserParams.getAcceptTypes()));
                 if (pendingFileChooser != null) {
                     pendingFileChooser.onReceiveValue(null);
                     pendingFileChooser = null;
                 }
                 pendingFileChooser = filePathCallback;
                 try {
-                    startActivityForResult(fileChooserParams.createIntent(), FILE_CHOOSER_REQUEST);
+                    Intent chooserIntent = fileChooserParams.createIntent();
+                    recordDiagnostic("FILE_CHOOSER launching intent=" + chooserIntent.getAction());
+                    startActivityForResult(chooserIntent, FILE_CHOOSER_REQUEST);
+                    recordDiagnostic("FILE_CHOOSER picker activity launched");
                     return true;
                 } catch (Exception e) {
+                    recordDiagnostic("FILE_CHOOSER launch exception=" + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()));
                     pendingFileChooser.onReceiveValue(null);
                     pendingFileChooser = null;
                     Toast.makeText(PlatformWebActivity.this,
@@ -177,7 +247,15 @@ public class PlatformWebActivity extends Activity {
         setContentView(root);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         root.requestApplyInsets();
+        recordDiagnostic("ACTIVITY created; contentAccess=" + settings.getAllowContentAccess() + ", fileAccess=" + settings.getAllowFileAccess());
         webView.loadUrl("https://chatgpt.com/");
+    }
+
+    private String safeHost(String rawUrl) {
+        try {
+            Uri uri = Uri.parse(rawUrl);
+            return uri.getScheme() + "://" + uri.getHost();
+        } catch (Exception ignored) { return "unknown"; }
     }
 
     private int dp(float value) {
@@ -231,6 +309,16 @@ public class PlatformWebActivity extends Activity {
         if (requestCode == FILE_CHOOSER_REQUEST) {
             if (pendingFileChooser != null) {
                 Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                int count = results == null ? 0 : results.length;
+                recordDiagnostic("FILE_CHOOSER resultCode=" + resultCode + " uriCount=" + count
+                        + " outcome=" + (resultCode != RESULT_OK ? "cancelled_or_failed" : (count == 0 ? "empty_result" : "uri_returned")));
+                if (results != null) {
+                    for (int i = 0; i < results.length; i++) {
+                        String mime = "unknown";
+                        try { mime = getContentResolver().getType(results[i]); } catch (Exception ignored) { }
+                        recordDiagnostic("FILE_CHOOSER selected item#" + (i + 1) + " mime=" + mime);
+                    }
+                }
                 pendingFileChooser.onReceiveValue(results);
                 pendingFileChooser = null;
             }
@@ -257,6 +345,7 @@ public class PlatformWebActivity extends Activity {
 
     @Override protected void onDestroy() {
         if (pendingFileChooser != null) {
+            recordDiagnostic("FILE_CHOOSER callback cancelled during Activity destroy");
             pendingFileChooser.onReceiveValue(null);
             pendingFileChooser = null;
         }
