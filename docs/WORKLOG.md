@@ -353,3 +353,14 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - Photo failure remains unconfirmed; document-success/photo-failure report suggests checking format-specific behavior on device.
 - No user database, chat history, imported archive, credentials, or preferences were modified.
 - Next: verify CI on this code commit, retrieve its exact APK, then test image and document attachment plus hide/show behavior on the phone.
+
+## 2026-10-10 — WL-030 — WebView teardown resource cleanup
+
+- **Lifecycle:** CHANGED; CI/device verification pending.
+- **Research:** Android Developers documents WebView as a Chromium-based component with native/renderer-process memory outside the app's Java heap; unmanaged instances can cause leaks and degraded device performance. Official teardown guidance explicitly removes WebView from its parent before `destroy()`. References: https://developer.android.com/develop/ui/views/layout/webapps/manage-webview-memory and https://developer.android.com/topic/performance/memory/guide/webview-memory.
+- **Source change:** commit `39a63b2c979e1eec0e80578b2720200b3cea9eaf` updates `PlatformWebActivity.onDestroy()` to remove WebView from its parent ViewGroup before stopping loading, detaching clients, destroying the instance, and clearing the reference.
+- **Important limits:** This is a narrowly justified lifecycle cleanup, not proof of the user's reported browser slowdown root cause. Android may retain renderer/native cache memory after destruction; no device profile is available in this session. Avoid global `WebView.pauseTimers()` because the API pauses timers for all WebViews, not just this instance.
+- **Existing controls:** Source already has a Show/Hide composer toggle and allows selected `content://` access while keeping `file://` access disabled. The user-visible APK previously tested may not contain the latest source; device behavior remains unverified.
+- **Data safety:** no app data, cookies, history, archives, or credentials cleared or modified.
+- **Verification:** source patch committed; no CI result or device test claimed yet.
+- **Next:** run the Android CI workflow for this exact commit; if successful, distribute the resulting debug APK and test repeated WebView open/close, native browser responsiveness, photo/document attachments, and composer toggle on the user's device. If slowdown persists, collect Android Studio/Perfetto or `dumpsys meminfo` evidence rather than guessing.
