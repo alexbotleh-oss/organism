@@ -377,3 +377,13 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no application data, database, cookies, browsing history, or imported archive was changed. Reversible source-only change.
 - **Status:** PARTIAL / NOT DEVICE-TESTED.
 - **Next action:** inspect exact-commit CI and obtain a debug APK only if the build succeeds; then compare ordinary-browser responsiveness after opening/closing the embedded view. Separately investigate photo attachment with a device test; do not log selected file URIs or contents.
+
+
+## 2026-10-10 — WL-032 — WebView composer usability
+
+- Goal: unblock practical testing by preventing the ORGANISM composer from competing with ChatGPT's native composer.
+- Branch: `fix/oauth-diagnostic-trace-20261009`. Source commits: `7589a870abeab2c799b9010be49cc21f1a3d3210` (composer hidden by default; toggle label corrected), then `b99ae679f996e47df8b2370bce1fa0f03b9cafee` (composer collapses and keyboard hides after copying prompt).
+- Current flow remains explicit/manual: prepare prompt in ORGANISM → copy → paste and send in ChatGPT Web → copy answer → use “Вставить ответ из ChatGPT Web” in ORGANISM. Existing response import associates question and answer with the same turn/session. No DOM scraping, automatic send, or limit bypass added.
+- Read-back: current source fetched after commits. CI run `38028105547` passed only for prior SHA `70915b0bc66972247dc98aa522e11b8b3e655167`; its APK does not contain these changes. CI for `b99ae679f996e47df8b2370bce1fa0f03b9cafee` and physical-device behavior remain unverified.
+- Data safety: no database, archive, cookies, history, credentials, or preferences cleared or modified.
+- Status: PARTIAL. Next: verify exact-head Actions build, then test the round trip, attachments, keyboard/touch layout, and WebView reopen behavior on the existing installation.
