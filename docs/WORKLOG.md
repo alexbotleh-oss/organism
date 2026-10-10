@@ -341,3 +341,15 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Safety/data:** no user data, app database, imported archive, credentials or preferences were modified during this investigation.
 - **Verification:** source inspection and screenshots only. No code fix, CI build for a fix, or device confirmation is claimed by this entry.
 - **Next step:** implement the narrow content-URI fix and responsive composer redesign; run CI and update this log/handoff with the exact resulting commit and artifact before requesting device validation.
+
+
+## 2026-10-10 — WL-028 — WebView composer toggle
+
+- Status: source change committed; CI and device verification pending.
+- Branch: fix/oauth-diagnostic-trace-20261009.
+- Code commit: 8c10635347d4fa97b3e6a83538d9b6db69b55a1b.
+- PlatformWebActivity now enables WebView content access for user-selected Android content:// attachment URIs while keeping file:// access disabled.
+- Added a visible header control to hide/show the ORGANISM composer and helper text; hiding also dismisses the keyboard. This is an interim debugging control, not native composer integration and not automatic send/receive.
+- Photo failure remains unconfirmed; document-success/photo-failure report suggests checking format-specific behavior on device.
+- No user database, chat history, imported archive, credentials, or preferences were modified.
+- Next: verify CI on this code commit, retrieve its exact APK, then test image and document attachment plus hide/show behavior on the phone.
