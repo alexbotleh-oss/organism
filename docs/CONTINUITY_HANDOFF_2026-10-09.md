@@ -293,3 +293,14 @@ The prior handoff said CI was pending because the first status helper returned n
 - **Current status:** APK artifact recovered and downloaded; successful CI compilation verified for the exact app code SHA. Physical-device behavior and project-wide UI audit are still NOT TESTED. Do not call the app release-ready solely from CI.
 - **Data safety:** artifact retrieval only; no app data, imported archive, database, credentials, or preferences changed.
 - **Next action:** user installs APK over existing app without clearing storage; check launch and retained history, WebView safe areas and keyboard reachability, plus image/document selection and cancellation. Then record actual device findings and fix any blockers.
+
+
+## Handoff update — WebView attachments and composer UX (2026-10-10)
+
+- User confirmed the product requirement: do not remove ORGANISM's planned input/control path, but stop it from obstructing ChatGPT's native composer and attachment controls.
+- User's screenshots show the ChatGPT site composer and a second fixed ORGANISM composer simultaneously. The cookie dialog also competes with the fixed footer; touch targets and usable viewport are compromised. User reports a document attached successfully but a photo did not.
+- Source inspection found that `PlatformWebActivity` implements `WebChromeClient.onShowFileChooser` and forwards the selected URI result, but `WebSettings.setAllowContentAccess(false)` is set. This is a plausible contributor to image attachment failure, not a confirmed root cause yet.
+- The ORGANISM "Отправить" button currently copies prompt text to the clipboard and explicitly does not send it automatically. Do not describe this as integrated send/receive.
+- Work-log entry `WL-027` recorded in commit `49a3487cb5465bd9f19871227a19a7ae74e8fcf1`.
+- Current stage is investigation/planned implementation. No code fix, new build, or device validation is claimed yet. No user data was altered.
+- Next: implement narrowly scoped content URI access for user-selected attachments while retaining disabled `file://` access; add non-sensitive chooser failure/cancel diagnostics; redesign ORGANISM composer to be collapsible/secondary by default; preserve the control entry point; run CI; distribute only the exact built artifact; then device-test photo/document attachment and UI reachability.
