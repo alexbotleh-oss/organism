@@ -386,11 +386,37 @@ public class PlatformWebActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == FILE_CHOOSER_REQUEST) {
-            recordDiagnostic("FILE_CHOOSER activity result received; resultCode=" + resultCode + ", dataPresent=" + (data != null));
+            int clipCount = data != null && data.getClipData() != null ? data.getClipData().getItemCount() : 0;
+            String resultAction = data == null ? "none" : String.valueOf(data.getAction());
+            String resultType = data == null ? "none" : String.valueOf(data.getType());
+            recordDiagnostic("FILE_CHOOSER activity result received; resultCode=" + resultCode
+                    + ", dataPresent=" + (data != null) + ", action=" + resultAction
+                    + ", type=" + resultType + ", dataUriPresent=" + (data != null && data.getData() != null)
+                    + ", clipItems=" + clipCount + ", flags=" + (data == null ? 0 : data.getFlags()));
             if (pendingFileChooser != null) {
                 Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                int parsedCount = results == null ? 0 : results.length;
+                if (resultCode == RESULT_OK && parsedCount == 0 && data != null) {
+                    // Some document/photo pickers return the selected content URI through data/ClipData
+                    // even when FileChooserParams.parseResult() does not expose it.
+                    ArrayList<Uri> recovered = new ArrayList<>();
+                    if (data.getData() != null) recovered.add(data.getData());
+                    if (data.getClipData() != null) {
+                        for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                            Uri itemUri = data.getClipData().getItemAt(i).getUri();
+                            if (itemUri != null && !recovered.contains(itemUri)) recovered.add(itemUri);
+                        }
+                    }
+                    if (!recovered.isEmpty()) {
+                        results = recovered.toArray(new Uri[0]);
+                        recordDiagnostic("FILE_CHOOSER fallback recovered URI count=" + results.length);
+                    } else {
+                        recordDiagnostic("FILE_CHOOSER fallback found no URI in data/ClipData");
+                    }
+                }
                 int count = results == null ? 0 : results.length;
-                recordDiagnostic("FILE_CHOOSER resultCode=" + resultCode + " uriCount=" + count
+                recordDiagnostic("FILE_CHOOSER resultCode=" + resultCode + " parsedUriCount=" + parsedCount
+                        + " deliveredUriCount=" + count
                         + " outcome=" + (resultCode != RESULT_OK ? "cancelled_or_failed" : (count == 0 ? "empty_result" : "uri_returned")));
                 if (results != null) {
                     for (int i = 0; i < results.length; i++) {
