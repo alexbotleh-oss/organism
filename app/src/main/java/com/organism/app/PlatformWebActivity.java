@@ -59,6 +59,11 @@ public class PlatformWebActivity extends Activity {
         back.setText("Назад");
         back.setAllCaps(false);
         back.setOnClickListener(v -> finish());
+        Button toggleComposer = new Button(this);
+        toggleComposer.setText("Скрыть ввод");
+        toggleComposer.setAllCaps(false);
+        toggleComposer.setMinHeight(dp(48));
+        header.addView(toggleComposer, new LinearLayout.LayoutParams(-2, -2));
         header.addView(back, new LinearLayout.LayoutParams(-2, -2));
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
@@ -67,7 +72,8 @@ public class PlatformWebActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(false);
+        // Android grants access to user-selected content:// URIs. Keep file:// disabled.
+        settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
@@ -140,6 +146,20 @@ public class PlatformWebActivity extends Activity {
         sendParams.leftMargin = dp(8);
         composer.addView(send, sendParams);
         root.addView(composer, new LinearLayout.LayoutParams(-1, -2));
+
+        toggleComposer.setOnClickListener(v -> {
+            boolean currentlyVisible = composer.getVisibility() == View.VISIBLE;
+            int nextVisibility = currentlyVisible ? View.GONE : View.VISIBLE;
+            composer.setVisibility(nextVisibility);
+            helper.setVisibility(nextVisibility);
+            toggleComposer.setText(currentlyVisible ? "Показать ввод" : "Скрыть ввод");
+            if (currentlyVisible) {
+                input.clearFocus();
+                android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.hideSoftInputFromWindow(input.getWindowToken(), 0);
+            }
+        });
 
         setContentView(root);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
