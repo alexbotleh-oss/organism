@@ -315,3 +315,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** documentation-only stage; no app data, database, imported archive, OAuth credentials, or preferences changed.
 - **Status:** standard documented and linked from project entry instructions; not yet audited against every existing screen.
 - **Next action:** inspect the latest UI commit's CI result, then audit all app screens against this checklist and fix the screen-level issues as one coherent UI pass before treating the APK as release-ready.
+
+
+## 2026-10-10 — WL-026 — Recover and verify the WebView safe-area APK artifact
+
+- **User goal:** provide the actual installable ORGANISM APK rather than another status-only response.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`; safe-area source commit `08cb9dafdbc2eae918808886adfa310b178d5a6e`. Earlier checks incorrectly treated empty commit status / PR-filtered workflow-run results as evidence that no build existed.
+- **Investigation/correction:** queried workflow artifacts directly for recorded run IDs. Found run `37987076157`, job `assemble-debug` = `success`, artifact `organism-debug-apk` ID `11642818226`, tied to exact source SHA `08cb9dafdbc2eae918808886adfa310b178d5a6e`. Downloaded artifact and confirmed it contains `app-debug.apk` (11,460,069 bytes).
+- **Artifact integrity:** extracted APK SHA-256 `ccadeea02297103d2f4f3c385a7f3b6d0910889e7fd09901f0e74d22376a3298`. The artifact is a debug build, not a signed production release.
+- **Branch/source relation:** GitHub compare confirms three commits after `08cb9da` through `c8530c0` modify only `PROJECT_INSTRUCTIONS.md`, `docs/ANDROID_UI_STANDARD_v1.0.md`, and `docs/WORKLOG.md`; no Android app source changed after the APK's code SHA in that comparison.
+- **Verification boundary:** CI build passed for the exact app source SHA. No physical-device/emulator usability test has been performed here; UI safe areas, keyboard reachability, file chooser, and other screens remain unverified against the mandatory UI checklist.
+- **Data safety:** APK retrieval only. No app database, imported archive, credentials, preferences, or user data were modified.
+- **Status:** APK recovered and checksum verified; device-level release gate remains PARTIAL.
+- **Next action:** install over the existing app without clearing storage; verify launch, existing archive/session retention, WebView top/bottom safe areas with keyboard open, and attachment picker. Report any visible defect before calling it release-ready.
