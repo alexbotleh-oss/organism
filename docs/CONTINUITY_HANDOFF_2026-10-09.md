@@ -366,3 +366,14 @@ Source inspection of PlatformWebActivity.java confirms the file chooser callback
 **Next step:** determine the precise failure point (picker does not open / screenshot cannot be selected / selected screenshot never appears as a ChatGPT attachment / upload or send fails), then implement a narrow fix, build the exact source commit, and test on the existing phone installation. Acceptance requires screenshot preview and successful send, plus picker-cancel and document-control checks. Do not clear app data, cookies, chat history, or database.
 
 **Status:** OPEN / NOT FIXED / NOT DEVICE-VERIFIED. No app code or user data was changed in this stage; no new build or device test was performed.
+
+
+## Handoff update — diagnostic instrumentation for attachment failures (2026-10-10)
+
+The user explicitly rejected guessing by trial and error and expects ORGANISM to include useful diagnostics. Work-log entry WL-035 records this requirement and implementation.
+
+Source commits on `fix/oauth-diagnostic-trace-20261009`: `e2b8f86695fe1745235abe6c9d6041644ae2ee56`, `db70f8189e63cf63e9b389eaeeacc63e6dbcd0cf`, and `6fe2a5716fc87cb425b8a8d159aca88f6ded1eec`. `PlatformWebActivity` now exposes a `Log` button and copyable report, keeps up to 80 timestamped events, and records WebView main-frame errors, chooser request/mode/accepted MIME patterns, picker launch outcomes, Android activity result/cancel/empty-result, returned MIME types, and lifecycle cancellation. The report includes Android/WebView versions where supported. It intentionally does not record selected content URI/path or file contents. `file://` remains disabled; no broad storage permission or data reset was added.
+
+This instrumentation narrows the failure stage but cannot alone prove that ChatGPT displayed an attachment preview or completed upload. Exact-source CI and real-device validation are pending. **Next:** read back source/log/handoff, inspect exact CI build for the latest source SHA, obtain its artifact if successful, then test screenshot, document, and cancellation on the existing phone installation and copy the diagnostic report after reproducing the issue.
+
+**Status:** PARTIAL / NOT RELEASE-VERIFIED / NOT DEVICE-TESTED. No user data was changed.
