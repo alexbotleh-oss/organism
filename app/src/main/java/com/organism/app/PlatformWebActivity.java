@@ -1,6 +1,8 @@
 package com.organism.app;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
@@ -13,6 +15,7 @@ import android.view.WindowManager;
 import android.widget.EditText;
 import android.net.Uri;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -37,12 +40,15 @@ public class PlatformWebActivity extends Activity {
     private final ArrayList<String> diagnosticEvents = new ArrayList<>();
     private static final int MAX_DIAGNOSTIC_EVENTS = 80;
     private int chooserAttempt = 0;
+    private static final int MICROPHONE_PERMISSION_REQUEST = 4201;
+    private PermissionRequest pendingWebPermissionRequest;
 
     private void recordDiagnostic(String event) {
         String line = new SimpleDateFormat("HH:mm:ss.SSS", Locale.ROOT).format(new Date()) + " " + event;
         diagnosticEvents.add(line);
         if (diagnosticEvents.size() > MAX_DIAGNOSTIC_EVENTS) diagnosticEvents.remove(0);
         Log.i("ORGANISM-WebDiag", line);
+        AppDiagnostics.record(this, "WEBVIEW", "EVENT", event);
     }
 
     private void showDiagnostics() {
@@ -55,7 +61,8 @@ public class PlatformWebActivity extends Activity {
         report.append("Версия Android: ").append(android.os.Build.VERSION.RELEASE)
                 .append(" (SDK ").append(android.os.Build.VERSION.SDK_INT).append(")\n")
                 .append("WebView: ").append(webViewVersion).append("\n")
-                .append("Попыток выбора файла: ").append(chooserAttempt).append("\n\n");
+                .append("Попыток выбора файла: ").append(chooserAttempt).append("\n")
+                .append("Разрешение микрофона Android: ").append(checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED ? "разрешено" : "не выдано").append("\n\n");
         if (diagnosticEvents.isEmpty()) report.append("Событий пока нет.");
         else for (String event : diagnosticEvents) report.append(event).append('\n');
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
@@ -80,6 +87,7 @@ public class PlatformWebActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        AppDiagnostics.record(this, "WEBVIEW", "ACTIVITY_OPENED", "ChatGPT Web activity created");
         prompt = getIntent().getStringExtra(EXTRA_PROMPT);
         if (prompt == null) prompt = "";
 
@@ -144,6 +152,15 @@ public class PlatformWebActivity extends Activity {
             }
         });
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> handleWebPermissionRequest(request));
+            }
+
+            @Override public void onPermissionRequestCanceled(PermissionRequest request) {
+                recordDiagnostic("WEB_PERMISSION request cancelled by WebView");
+                if (pendingWebPermissionRequest == request) pendingWebPermissionRequest = null;
+            }
+
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePathCallback,
                     FileChooserParams fileChooserParams) {
@@ -255,6 +272,64 @@ public class PlatformWebActivity extends Activity {
         webView.loadUrl("https://chatgpt.com/");
     }
 
+    private void handleWebPermissionRequest(PermissionRequest request) {
+        String host = request.getOrigin() == null ? "" : request.getOrigin().getHost();
+        String scheme = request.getOrigin() == null ? "" : request.getOrigin().getScheme();
+        boolean trusted = "https".equalsIgnoreCase(scheme) && host != null
+                && ("chatgpt.com".equalsIgnoreCase(host) || host.endsWith(".chatgpt.com")
+                || "chat.openai.com".equalsIgnoreCase(host));
+        boolean asksForAudio = false;
+        for (String resource : request.getResources()) {
+            if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) asksForAudio = true;
+        }
+        recordDiagnostic("WEB_PERMISSION requested host=" + (host == null ? "unknown" : host)
+                + " resources=" + java.util.Arrays.toString(request.getResources())
+                + " trustedOrigin=" + trusted);
+        if (!trusted || !asksForAudio || request.getResources().length != 1) {
+            recordDiagnostic("WEB_PERMISSION denied: unsupported origin or resource set");
+            request.deny();
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            recordDiagnostic("WEB_PERMISSION granting audio capture; Android runtime permission already granted");
+            request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            return;
+        }
+        if (pendingWebPermissionRequest != null) {
+            recordDiagnostic("WEB_PERMISSION denied: another microphone request is pending");
+            request.deny();
+            return;
+        }
+        pendingWebPermissionRequest = request;
+        recordDiagnostic("WEB_PERMISSION waiting for Android RECORD_AUDIO runtime permission");
+        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MICROPHONE_PERMISSION_REQUEST);
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != MICROPHONE_PERMISSION_REQUEST) return;
+        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        recordDiagnostic("ANDROID_PERMISSION RECORD_AUDIO result=" + (granted ? "granted" : "denied"));
+        PermissionRequest request = pendingWebPermissionRequest;
+        pendingWebPermissionRequest = null;
+        if (request == null) {
+            recordDiagnostic("WEB_PERMISSION no pending WebView request after Android permission dialog");
+            return;
+        }
+        if (granted && webView != null && request.getOrigin() != null
+                && "https".equalsIgnoreCase(request.getOrigin().getScheme())
+                && ("chatgpt.com".equalsIgnoreCase(request.getOrigin().getHost())
+                    || request.getOrigin().getHost().endsWith(".chatgpt.com")
+                    || "chat.openai.com".equalsIgnoreCase(request.getOrigin().getHost()))) {
+            recordDiagnostic("WEB_PERMISSION granting audio capture after Android permission approval");
+            request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+        } else {
+            recordDiagnostic("WEB_PERMISSION denied after Android permission result");
+            request.deny();
+            Toast.makeText(this, "Для голосового ввода нужно разрешить микрофон в Android.", Toast.LENGTH_LONG).show();
+        }
+    }
+
     private String safeHost(String rawUrl) {
         try {
             Uri uri = Uri.parse(rawUrl);
@@ -351,6 +426,11 @@ public class PlatformWebActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (pendingWebPermissionRequest != null) {
+            try { pendingWebPermissionRequest.deny(); } catch (Exception ignored) { }
+            pendingWebPermissionRequest = null;
+            recordDiagnostic("WEB_PERMISSION denied because Activity is being destroyed");
+        }
         if (pendingFileChooser != null) {
             recordDiagnostic("FILE_CHOOSER callback cancelled during Activity destroy");
             pendingFileChooser.onReceiveValue(null);
