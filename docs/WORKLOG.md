@@ -399,3 +399,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no app data, database, imported archive, browser history, credentials, or user preferences modified.
 - **Status:** PARTIAL until the work-log and handoff updates are read back and verified. This entry records the rule; it does not claim the process has already been enforced perfectly.
 - **Next action:** update the continuity handoff with this requirement and the exact documentation commit chain; read back all changed files and confirm the final branch head.
+
+
+## 2026-10-10 — WL-034 — Screenshot attachment still fails in the in-app ChatGPT WebView
+
+- **Lifecycle:** STARTED / BLOCKED on reproduction details; no fix claimed.
+- **User report:** “Пишу тебе с нашего приложения, добавление скриншота так и не работает” — the user is writing from ORGANISM and screenshot attachment still does not work.
+- **Relevant history:** WL-022 records the WebView file chooser implementation (onShowFileChooser); WL-027 records a previous report that a document attached but a photo did not; WL-028 enabled WebView content access for selected Android content:// URIs while keeping file:// disabled. Those changes were not confirmed as fixing photo attachment on the physical device.
+- **Baseline inspected:** branch fix/oauth-diagnostic-trace-20261009; app/src/main/java/com/organism/app/PlatformWebActivity.java currently uses FileChooserParams.createIntent(), startActivityForResult(), and FileChooserParams.parseResult(). It shows an error only if launching the picker throws; it does not distinguish picker cancellation, an empty URI result, and a successful selection in user-visible diagnostics. setAllowContentAccess(true) is already present. Manifest declares INTERNET and the FileProvider, but no broad storage permission.
+- **Important uncertainty:** the report does not yet identify whether the picker fails to open, the image cannot be selected, or the selected image fails to attach/upload in ChatGPT. Do not assume the root cause and do not add broad storage permissions without evidence.
+- **Acceptance:** from the existing install and existing data, open the ChatGPT attachment picker; select a screenshot; confirm it appears as an attachment preview and can be sent (or capture the exact error). Also test picker cancellation and a document as controls. Preserve the current session/database/cookies/history.
+- **Data safety:** no app data, database, imported archive, credentials, browser session, or preferences changed during this inspection.
+- **Status:** OPEN / NOT FIXED / NOT DEVICE-VERIFIED.
+- **Next action:** establish the exact failure point with the user, then make the narrowest evidence-based fix; build the exact commit and test on the phone before marking resolved.
