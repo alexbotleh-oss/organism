@@ -388,3 +388,8 @@ Source changes on `fix/oauth-diagnostic-trace-20261009` through `8ef0a200cafed53
 **Known open work:** the original voice-assistant invocation must be compared with the earlier prototype and restored, rather than assuming speech-to-text equals full voice conversation. The freeze is not yet root-caused: response completion currently performs `db.chat(activeSessionId)` from the UI callback, a candidate for measured investigation. Instrument and measure query/render time, then fix only the demonstrated bottleneck. WebView mic, file chooser, native speech recognition, and response responsiveness require device testing. The latest-source CI run must be checked before delivering an APK.
 
 **Status:** PARTIAL / NOT DEVICE-VERIFIED. Next action: check CI for exact source SHA `8ef0a200cafed534c25ac2849d2b86815ba80141`; resolve build issues, then test the existing installation without clearing data and collect the new app-wide diagnostic report.
+
+
+### WL-036 addendum — response latency measurement
+
+Commit `464dabc1eeb4517ae8f4160d79165f1b76c90ebc` moves the post-response chat-history query off the UI callback and adds persistent timings for request-to-response completion, history query, and TextView render; rendering >=250 ms records `SLOW_CHAT_RENDER`. This is a narrow mitigation/instrumentation, not proof the freeze is fixed. CI and physical-device checks for the latest code are pending. The latest source SHA to build is `464dabc1eeb4517ae8f4160d79165f1b76c90ebc`.
