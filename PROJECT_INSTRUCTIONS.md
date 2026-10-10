@@ -77,3 +77,7 @@ Before designing or changing ANY Android screen, read `docs/ANDROID_UI_STANDARD_
 - Do not use trial-and-error as a substitute for instrumentation. For a recurring/unclear failure, add or use diagnostics first, reproduce, inspect the report, then make a narrow evidence-based fix. Distinguish what is implemented from what was tested on-device and what is merely inferred.
 - Preserve native voice input and voice-assistant entrypoints across UI changes. WebView audio capture requires both Android runtime RECORD_AUDIO permission and an explicit, origin-restricted WebChromeClient permission flow; never grant microphone access to arbitrary origins or resources. Speech-to-text input is not equivalent to a full-duplex voice assistant; record that distinction.
 - UI stalls during assistant responses are a release blocker. Instrument request, persistence, DB history query, and rendering durations; inspect main-thread work and fix measured bottlenecks rather than assuming a cause.
+
+
+## WebView navigation and downloads
+- The in-app WebView must have explicit, diagnosable behavior for link navigation and file downloads. HTTP(S) download requests should be routed through a supported Android download mechanism with clear user feedback and a recorded outcome; ordinary external links should open in a browser without breaking ChatGPT or authentication navigation. Never claim support for blob/data/sandbox links without an observed and tested transfer implementation. Keep URLs, query tokens, cookies, filenames, file paths, and contents out of diagnostic reports.
