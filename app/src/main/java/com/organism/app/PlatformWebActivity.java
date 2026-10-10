@@ -352,11 +352,8 @@ public class PlatformWebActivity extends Activity {
             if (userAgent != null && !userAgent.trim().isEmpty()) request.addRequestHeader("User-Agent", userAgent);
             String cookie = CookieManager.getInstance().getCookie(rawUrl);
             if (cookie != null && !cookie.isEmpty()) request.addRequestHeader("Cookie", cookie);
-            if (uri.getScheme() != null && "https".equalsIgnoreCase(uri.getScheme())) {
-                request.addRequestHeader("Referer", "https://chatgpt.com/");
-            }
             long id = manager.enqueue(request);
-            recordDiagnostic("WEB_DOWNLOAD enqueued id=" + id + " filename=" + filename);
+            recordDiagnostic("WEB_DOWNLOAD enqueued id=" + id);
             Toast.makeText(this, "Загрузка началась. Результат будет в уведомлениях и папке «Загрузки».", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             recordDiagnostic("WEB_DOWNLOAD enqueue failed=" + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()));
