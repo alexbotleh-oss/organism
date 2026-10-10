@@ -482,3 +482,18 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Verification:** GitHub source writes succeeded; latest source commit is f4bd537413e9a56365a95d405817b3055286c7e5. No successful CI build or device test for this exact commit is confirmed yet. Do not deliver an APK until exact-source build status is checked.
 - **Status:** PARTIAL / NOT DEVICE-VERIFIED.
 - **Next action:** read back source/docs and inspect CI on exact head. Build the APK, then on Android 16 test (1) external website link, (2) normal HTTPS file download, (3) a ChatGPT-generated project file link, (4) sign-in redirect, (5) download open from Android notification/Downloads, and record diagnostic outcomes. If ChatGPT file link uses blob/sandbox, implement an explicit supported transfer path only after determining its actual scheme/flow; do not fake support or scrape page internals.
+
+
+## 2026-10-10 — WL-039 — Delegate ChatGPT file downloads to ordinary browser
+
+- **Lifecycle:** STARTED → CHANGED. Device symptom was reproduced by the user's log/screenshots; source fix committed. Build/device verification remains pending.
+- **Goal:** stop ORGANISM from saving a ChatGPT APK download as `content.bin` when the same link downloads correctly in the ordinary browser.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`; source blob `6e2e91f31be19b833699dbcb4540a6039d225ffb` in `PlatformWebActivity.java`.
+- **Device evidence:** ORGANISM logged `WEB_DOWNLOAD requested scheme=https host=chatgpt.com mime=application/octet-stream bytes=0`, followed by `WEB_DOWNLOAD enqueued id=731`; Android Download Manager produced `content.bin`. The user then used the ordinary browser on the same ChatGPT conversation and saw the expected `app-debug(1).apk` download prompt and successful completion.
+- **Diagnosis:** the existing `DownloadManager` path does not preserve the filename/download behavior used by ChatGPT's ordinary browser flow. This is a code-path difference evidenced by the paired device tests; no claim is made about the underlying server response beyond the log.
+- **Change:** `PlatformWebActivity.handleWebDownload()` now delegates `chatgpt.com` and its subdomains to `openExternalUrl(uri)` and returns before enqueuing DownloadManager. Other HTTP(S) downloads retain the previous DownloadManager handling. Commit: `380cb579ae8657e32b005bc01472f0cb71c67dc6`.
+- **Verification:** source write committed. Exact commit build and device retest have NOT been run/confirmed yet. Expected success evidence: tapping ChatGPT APK link in ORGANISM launches browser, browser presents correct `.apk` filename, and the download completes. Also verify unrelated HTTP(S) downloads still work.
+- **Failures/regressions/risks:** external browser may not share the WebView authentication session; test that the direct URL works in the browser before claiming fix complete. This is a deliberate narrow fallback based on the user's successful browser test.
+- **Data safety:** no app database or user data changed.
+- **Status:** PARTIAL — targeted source fix committed, build/device confirmation pending.
+- **Next:** run Android build for exact current branch head, inspect build result, then ask user to test only the ChatGPT download handoff if build succeeds.
