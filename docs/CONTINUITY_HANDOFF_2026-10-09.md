@@ -282,3 +282,14 @@ The prior handoff said CI was pending because the first status helper returned n
 - The standard is based on official Android guidance: handle window insets and edge-to-edge system bars, preserve reachability under keyboard/system UI, use at least 48×48 dp touch targets and consistent dp/sp spacing, test adaptive states, and keep build evidence separate from device verification.
 - This is a durable project rule, not a claim that every existing screen has already been audited. The latest WebView safe-area code commit `08cb9dafdbc2eae918808886adfa310b178d5a6e` still needs its CI result and real-device validation.
 - Next action: check CI for latest source/UI commit; then conduct a screen-by-screen audit of the app using the standard and consolidate necessary fixes into a coherent UI pass. Do not ship based only on compilation; do not reset or alter user data during UI work.
+
+
+## Handoff update — APK artifact recovered (2026-10-10)
+
+- **Correction to prior handoff wording:** the safe-area UI build was not missing. The earlier check used commit statuses and a workflow-run helper that only returns PR-triggered runs, so it missed the successful push build artifact.
+- **Exact build evidence:** GitHub Actions run [37987076157](https://github.com/alexbotleh-oss/organism/actions/runs/37987076157), job `assemble-debug` completed successfully; artifact `organism-debug-apk` ID `11642818226`; artifact records source `head_sha=08cb9dafdbc2eae918808886adfa310b178d5a6e`.
+- **Artifact contents:** `app-debug.apk`, 11,460,069 bytes. SHA-256: `ccadeea02297103d2f4f3c385a7f3b6d0910889e7fd09901f0e74d22376a3298`. This is a CI debug APK, not a signed production release.
+- **Source alignment:** compare `08cb9da...c8530c0` reports only documentation changes (`PROJECT_INSTRUCTIONS.md`, `docs/ANDROID_UI_STANDARD_v1.0.md`, `docs/WORKLOG.md`), no app-source changes after the APK source SHA in that range.
+- **Current status:** APK artifact recovered and downloaded; successful CI compilation verified for the exact app code SHA. Physical-device behavior and project-wide UI audit are still NOT TESTED. Do not call the app release-ready solely from CI.
+- **Data safety:** artifact retrieval only; no app data, imported archive, database, credentials, or preferences changed.
+- **Next action:** user installs APK over existing app without clearing storage; check launch and retained history, WebView safe areas and keyboard reachability, plus image/document selection and cancellation. Then record actual device findings and fix any blockers.
