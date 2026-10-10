@@ -315,3 +315,10 @@ The prior handoff said CI was pending because the first status helper returned n
 - CI build and device tests are pending; do not distribute or claim the fix works until the exact commit's build is retrieved and the phone confirms photo/document attachment and toggle behavior.
 - Work-log entry WL-028 recorded in commit `f4d0dd575e4a4ee7c6ebf6a45196015b699057ed`.
 - No user data or local app storage was modified.
+
+
+## 2026-10-10 WebView performance handoff
+
+Android Developers documents WebView as Chromium-based with native memory and renderer processes; memory pressure can affect other apps, and RSS may not immediately drop after destruction. Official cleanup guidance says to detach the WebView from its parent before destroying it. Narrow cleanup committed as 39a63b2c979e1eec0e80578b2720200b3cea9eaf; WL-030 recorded in 0d76a4eacc4078217a680d37ac2af8f876fca24f.
+
+This does not prove the root cause of the user's phone slowdown; no profiler trace or device test is available. Do not use global WebView.pauseTimers() as a quick fix because it pauses timers across all WebViews. Existing source has the composer Show/Hide toggle and selected content URI access; behavior on the latest installed APK remains unverified. Next: confirm CI for the exact source commit, then test repeated open/close and browser responsiveness. If lag persists, collect Android Studio Profiler, Perfetto, or dumpsys meminfo evidence. Do not clear cookies, site data, archives, or app history for diagnosis.
