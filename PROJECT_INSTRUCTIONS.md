@@ -70,3 +70,10 @@ Before designing or changing ANY Android screen, read `docs/ANDROID_UI_STANDARD_
 - If it changes current priorities, acceptance criteria, safety boundaries, or the next action, also update `docs/CONTINUITY_HANDOFF_2026-10-09.md` and, when it is a durable general rule, `PROJECT_INSTRUCTIONS.md`.
 - Preserve the user's intent and wording closely. Mark the requirement as open until implemented and verified; do not silently mark it complete because it was documented.
 - Before ending a stage, read back the updated log/handoff and confirm the requirement is present. Report the commit/evidence to the user.
+
+
+## Voice, diagnostics, and responsiveness requirements (2026-10-10)
+- The app must provide a persistent, in-app, copyable diagnostic report accessible from the main navigation/menu, not only from a temporary sub-screen. Record meaningful startup, permission, connector, file-selection, import, request/response, persistence, and UI-performance outcomes; preserve timestamps and enough technical detail to distinguish stages. Avoid logging message bodies, credentials, tokens, cookies, or selected file paths/URIs. Keep logs bounded and provide a log-only clear action with explicit confirmation.
+- Do not use trial-and-error as a substitute for instrumentation. For a recurring/unclear failure, add or use diagnostics first, reproduce, inspect the report, then make a narrow evidence-based fix. Distinguish what is implemented from what was tested on-device and what is merely inferred.
+- Preserve native voice input and voice-assistant entrypoints across UI changes. WebView audio capture requires both Android runtime RECORD_AUDIO permission and an explicit, origin-restricted WebChromeClient permission flow; never grant microphone access to arbitrary origins or resources. Speech-to-text input is not equivalent to a full-duplex voice assistant; record that distinction.
+- UI stalls during assistant responses are a release blocker. Instrument request, persistence, DB history query, and rendering durations; inspect main-thread work and fix measured bottlenecks rather than assuming a cause.
