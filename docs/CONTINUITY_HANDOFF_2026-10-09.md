@@ -355,3 +355,14 @@ Next: locate CI for `b99ae679f996e47df8b2370bce1fa0f03b9cafee`; if green, test i
 - Verification status at handoff writing: write API returned commits; final read-back of all three files is the next required check. This is a documentation/process change only; no app code, build, or device test was performed.
 - Data safety: no application/user data changed.
 - **Next action:** read back `PROJECT_INSTRUCTIONS.md`, the end of `docs/WORKLOG.md`, and this handoff on the same branch; confirm exact final head and ensure WL-033 and the rule are present.
+
+
+## Handoff update — screenshot attachment remains broken (2026-10-10)
+
+The user reports from the ORGANISM app that adding a screenshot still does not work. This is an active blocker for practical in-app ChatGPT Web use. Work-log entry WL-034 was appended in commit 9065aba6291ba46e895583f5b150b037681f8ef4.
+
+Source inspection of PlatformWebActivity.java confirms the file chooser callback exists, uses WebChromeClient.FileChooserParams.createIntent()/parseResult(), and selected content URI access is already enabled while file:// access stays disabled. The manifest has INTERNET and a FileProvider but no broad storage permission. Prior WL-027/WL-028 already noted photo-vs-document behavior and the tentative content-access fix; the user/device has not confirmed that fix works. Do not repeat the same unverified assumption or add broad storage permissions without evidence.
+
+**Next step:** determine the precise failure point (picker does not open / screenshot cannot be selected / selected screenshot never appears as a ChatGPT attachment / upload or send fails), then implement a narrow fix, build the exact source commit, and test on the existing phone installation. Acceptance requires screenshot preview and successful send, plus picker-cancel and document-control checks. Do not clear app data, cookies, chat history, or database.
+
+**Status:** OPEN / NOT FIXED / NOT DEVICE-VERIFIED. No app code or user data was changed in this stage; no new build or device test was performed.
