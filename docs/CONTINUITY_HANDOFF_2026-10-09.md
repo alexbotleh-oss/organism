@@ -377,3 +377,14 @@ Source commits on `fix/oauth-diagnostic-trace-20261009`: `e2b8f86695fe1745235abe
 This instrumentation narrows the failure stage but cannot alone prove that ChatGPT displayed an attachment preview or completed upload. Exact-source CI and real-device validation are pending. **Next:** read back source/log/handoff, inspect exact CI build for the latest source SHA, obtain its artifact if successful, then test screenshot, document, and cancellation on the existing phone installation and copy the diagnostic report after reproducing the issue.
 
 **Status:** PARTIAL / NOT RELEASE-VERIFIED / NOT DEVICE-TESTED. No user data was changed.
+
+
+## Handoff update — voice permissions, persistent diagnostics, response freezes (2026-10-10)
+
+The user reports that ChatGPT Web voice asks for microphone permission but cannot proceed, that the original native voice-input and voice-assistant entrypoints were removed, that the app needs a copyable in-app diagnostic report for both working and failing behavior, and that the UI freezes especially when assistant answers arrive. All four requirements are tracked in WL-036 in `docs/WORKLOG.md`.
+
+Source changes on `fix/oauth-diagnostic-trace-20261009` through `8ef0a200cafed534c25ac2849d2b86815ba80141`: new `AppDiagnostics.java` persists up to 300 timestamped technical events and provides device/Android/WebView metadata; MainActivity exposes a copyable report from the ••• menu and records startup/chat outcomes without storing message text; WebView diagnostics forward into that shared log; `RECORD_AUDIO` permission and an origin-restricted WebChromeClient audio-capture permission flow are added; native chat has a “🎙 Голосовой ввод” speech-to-text action using Android's recognizer. No database, chat, memory, RAW, cookies, or browser history were cleared.
+
+**Known open work:** the original voice-assistant invocation must be compared with the earlier prototype and restored, rather than assuming speech-to-text equals full voice conversation. The freeze is not yet root-caused: response completion currently performs `db.chat(activeSessionId)` from the UI callback, a candidate for measured investigation. Instrument and measure query/render time, then fix only the demonstrated bottleneck. WebView mic, file chooser, native speech recognition, and response responsiveness require device testing. The latest-source CI run must be checked before delivering an APK.
+
+**Status:** PARTIAL / NOT DEVICE-VERIFIED. Next action: check CI for exact source SHA `8ef0a200cafed534c25ac2849d2b86815ba80141`; resolve build issues, then test the existing installation without clearing data and collect the new app-wide diagnostic report.
