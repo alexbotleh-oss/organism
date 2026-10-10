@@ -387,3 +387,15 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - Read-back: current source fetched after commits. CI run `38028105547` passed only for prior SHA `70915b0bc66972247dc98aa522e11b8b3e655167`; its APK does not contain these changes. CI for `b99ae679f996e47df8b2370bce1fa0f03b9cafee` and physical-device behavior remain unverified.
 - Data safety: no database, archive, cookies, history, credentials, or preferences cleared or modified.
 - Status: PARTIAL. Next: verify exact-head Actions build, then test the round trip, attachments, keyboard/touch layout, and WebView reopen behavior on the existing installation.
+
+
+## 2026-10-10 — WL-033 — Record every new user requirement in repository work log
+
+- **Lifecycle:** STARTED → CHANGED; documentation updated, enforcement in the development workflow remains to be demonstrated across future tasks.
+- **User requirement:** “Все новые требования должны быть отражены в журнале работы над проектом в репозитории на который ссылаешься ты каждый раз” — every new requirement must be reflected in the project work log in the repository referenced during work.
+- **Baseline:** branch `fix/oauth-diagnostic-trace-20261009`; the existing work log and project instructions were fetched before editing. Work-log blob SHA: `a5c7a367a660b43252e47974af3b6e892f64c7b2`; project-instructions blob SHA before this change: `6e77c60cbedf633b87cf2f3a2aa8bc85e8b7891b`.
+- **Change:** add this entry and make the requirement a durable rule in `PROJECT_INSTRUCTIONS.md`. The rule requires updating the handoff too when priorities, acceptance criteria, safety constraints, or next steps change; a recorded requirement remains open until implemented and verified.
+- **Verification:** source contents fetched from GitHub before editing. Post-write read-back is still required after the sequential documentation commits. No application code/build/device test was changed or run in this documentation-only stage.
+- **Data safety:** no app data, database, imported archive, browser history, credentials, or user preferences modified.
+- **Status:** PARTIAL until the work-log and handoff updates are read back and verified. This entry records the rule; it does not claim the process has already been enforced perfectly.
+- **Next action:** update the continuity handoff with this requirement and the exact documentation commit chain; read back all changed files and confirm the final branch head.
