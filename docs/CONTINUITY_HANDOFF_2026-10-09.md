@@ -322,3 +322,14 @@ The prior handoff said CI was pending because the first status helper returned n
 Android Developers documents WebView as Chromium-based with native memory and renderer processes; memory pressure can affect other apps, and RSS may not immediately drop after destruction. Official cleanup guidance says to detach the WebView from its parent before destroying it. Narrow cleanup committed as 39a63b2c979e1eec0e80578b2720200b3cea9eaf; WL-030 recorded in 0d76a4eacc4078217a680d37ac2af8f876fca24f.
 
 This does not prove the root cause of the user's phone slowdown; no profiler trace or device test is available. Do not use global WebView.pauseTimers() as a quick fix because it pauses timers across all WebViews. Existing source has the composer Show/Hide toggle and selected content URI access; behavior on the latest installed APK remains unverified. Next: confirm CI for the exact source commit, then test repeated open/close and browser responsiveness. If lag persists, collect Android Studio Profiler, Perfetto, or dumpsys meminfo evidence. Do not clear cookies, site data, archives, or app history for diagnosis.
+
+
+## 2026-10-10 — WebView lifecycle follow-up
+
+- Immediate user priority in this conversation: address reported sluggishness after leaving/closing ORGANISM's embedded ChatGPT WebView, plus the overlapping composer and image-attachment issue.
+- Branch: `fix/oauth-diagnostic-trace-20261009`.
+- Existing code already had a visible `Скрыть ввод / Показать ввод` toggle, `setAllowContentAccess(true)` for selected `content://` attachments, and `onDestroy()` cleanup that detaches/stops/destroys WebView. `file://` remains disabled. The exact photo failure is not yet reproduced.
+- Added instance-scoped WebView lifecycle suspension: `onPause()` calls `webView.onPause()`; `onResume()` calls `webView.onResume()`. Commit: `1ca67afd8f12c47ee2a1dd57ef60268672de5f4b`. Work-log entry WL-031: commit `a55a845a0343fb8a67d08259cff00dffc4178cd8`.
+- No use of global `WebView.pauseTimers()`; that could affect unrelated WebViews. No user data or site session was touched.
+- **Verification boundary:** no confirmed CI build or device test for the new source commit yet. Do not present the lifecycle patch as a proven performance fix until an APK built from this change is tested on the user's phone. WebView may retain native/renderer memory after destruction; the symptom may also originate in the browser, Android System WebView, ChatGPT page, or device memory pressure.
+- **Next action:** find the exact GitHub Actions run for source commit `1ca67afd8f12c47ee2a1dd57ef60268672de5f4b`; inspect job status and download a debug APK only if successful. Then test repeated open → hide composer → leave/close → use normal browser. If slowdown persists, gather device model/Android version and use a memory/renderer trace rather than changing experimental WebView flags blindly. Photo picker diagnosis remains a separate device-validation item.
