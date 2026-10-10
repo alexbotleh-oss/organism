@@ -304,3 +304,14 @@ The prior handoff said CI was pending because the first status helper returned n
 - Work-log entry `WL-027` recorded in commit `49a3487cb5465bd9f19871227a19a7ae74e8fcf1`.
 - Current stage is investigation/planned implementation. No code fix, new build, or device validation is claimed yet. No user data was altered.
 - Next: implement narrowly scoped content URI access for user-selected attachments while retaining disabled `file://` access; add non-sensitive chooser failure/cancel diagnostics; redesign ORGANISM composer to be collapsible/secondary by default; preserve the control entry point; run CI; distribute only the exact built artifact; then device-test photo/document attachment and UI reachability.
+
+
+## Handoff update — visible composer toggle (2026-10-10)
+
+- Implemented in source commit `8c10635347d4fa97b3e6a83538d9b6db69b55a1b` on `fix/oauth-diagnostic-trace-20261009`.
+- `PlatformWebActivity` now allows WebView content access for Android user-selected `content://` attachments; `file://` access remains disabled. This is a plausible attachment fix, not yet device-confirmed.
+- Added a visible header button `Скрыть ввод` / `Показать ввод`. It hides/shows the ORGANISM composer and helper, and hides the keyboard when the composer is hidden. This allows debugging with the site's native composer unobstructed, while preserving an entry point to ORGANISM's own input.
+- Not yet implemented: automatic insertion into the site's native composer, automatic send/receive, and a true overlay bound to the native composer. Current button still copies text to clipboard.
+- CI build and device tests are pending; do not distribute or claim the fix works until the exact commit's build is retrieved and the phone confirms photo/document attachment and toggle behavior.
+- Work-log entry WL-028 recorded in commit `f4d0dd575e4a4ee7c6ebf6a45196015b699057ed`.
+- No user data or local app storage was modified.
