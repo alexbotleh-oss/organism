@@ -344,3 +344,14 @@ Existing manual round trip: `MainActivity.startPlatformWeb()` prepares a context
 CI run `38028105547` passed only for prior SHA `70915b0bc66972247dc98aa522e11b8b3e655167`; current exact-head CI and device testing remain pending. No local DB, archives, cookies, history, credentials, or preferences were cleared.
 
 Next: locate CI for `b99ae679f996e47df8b2370bce1fa0f03b9cafee`; if green, test its APK on the existing installation: manual round trip, photo/document attachments, keyboard/touch reachability, and close/reopen responsiveness.
+
+
+## 2026-10-10 — New mandatory continuity rule: log every user requirement
+
+- User directive: every new requirement must be reflected in `docs/WORKLOG.md` in this repository, not left only in chat context.
+- Durable rule added to `PROJECT_INSTRUCTIONS.md`; chronological entry added to `docs/WORKLOG.md` as WL-033.
+- Documentation commit chain so far: instructions `909f4f441eeeda2b3ed3995e5862fbbf053412ac`; work log `3fa227f175810a00566732f78c7cf9d9d2f0377b`.
+- The rule applies to new requirements, corrections, constraints, and priority changes. Update this handoff as well when the requirement changes priorities, acceptance criteria, safety boundaries, or the next action. Keep each requirement open until implementation and verification evidence support closure.
+- Verification status at handoff writing: write API returned commits; final read-back of all three files is the next required check. This is a documentation/process change only; no app code, build, or device test was performed.
+- Data safety: no application/user data changed.
+- **Next action:** read back `PROJECT_INSTRUCTIONS.md`, the end of `docs/WORKLOG.md`, and this handoff on the same branch; confirm exact final head and ensure WL-033 and the rule are present.
