@@ -393,3 +393,12 @@ Source changes on `fix/oauth-diagnostic-trace-20261009` through `8ef0a200cafed53
 ### WL-036 addendum — response latency measurement
 
 Commit `464dabc1eeb4517ae8f4160d79165f1b76c90ebc` moves the post-response chat-history query off the UI callback and adds persistent timings for request-to-response completion, history query, and TextView render; rendering >=250 ms records `SLOW_CHAT_RENDER`. This is a narrow mitigation/instrumentation, not proof the freeze is fixed. CI and physical-device checks for the latest code are pending. The latest source SHA to build is `464dabc1eeb4517ae8f4160d79165f1b76c90ebc`.
+
+
+## 2026-10-10 — Handoff addendum: Android 16 screenshot-picker result
+
+Device report received: Android 16 / SDK 36, WebView 153.0.8010.36. First picker attempt (document types) returned one text/plain URI. Second attempt (image/video types) returned RESULT_OK with data present but zero parsed URIs. This localizes the observed failure to the picker result/URI handoff stage or a cancelled/empty selection; it does not prove the user selected an image and does not prove anything about ChatGPT's attachment preview/upload. Android microphone permission is currently not granted, but this report does not show the permission request/result sequence.
+
+Targeted source change: commit f5183540145a41e47cbbb0a97131e5890ca23175 in PlatformWebActivity.java logs result action/type, data-URI presence, ClipData count, and flags without recording URI/path. When RESULT_OK is returned but parseResult yields no URI, it attempts recovery from Intent data and ClipData, deduplicating values. No broad storage permission or data reset was added. Work log WL-037 is recorded in commit c460b0874fc74e342d617280ed608652a79f382e.
+
+Status remains PARTIAL / NOT DEVICE-VERIFIED. Next action: verify exact source and documentation read-back, build/check CI for commit f5183540145a41e47cbbb0a97131e5890ca23175, then test on the existing phone installation without clearing app data. Acceptance: screenshot produces a nonzero delivered URI, visible ChatGPT attachment preview, and successful send; document and cancellation controls also pass. Then diagnose microphone permission using a report that includes WEB_PERMISSION requested / ANDROID_PERMISSION result events. Do not mark screenshot or microphone fixed from source changes alone.
