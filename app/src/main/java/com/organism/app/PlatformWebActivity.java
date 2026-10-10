@@ -46,12 +46,12 @@ public class PlatformWebActivity extends Activity {
     }
 
     private void showDiagnostics() {
-        StringBuilder report = new StringBuilder("ORGANISM · диагностика вложений/WebView\\n");
+        StringBuilder report = new StringBuilder("ORGANISM · диагностика вложений/WebView\n");
         report.append("Версия Android: ").append(android.os.Build.VERSION.RELEASE)
                 .append(" (SDK ").append(android.os.Build.VERSION.SDK_INT).append(")\\n")
                 .append("WebView: ").append(android.webkit.WebView.getCurrentWebViewPackage() == null
-                        ? "не определён" : android.webkit.WebView.getCurrentWebViewPackage().versionName).append("\\n")
-                .append("Попыток выбора файла: ").append(chooserAttempt).append("\\n\\n");
+                        ? "не определён" : android.webkit.WebView.getCurrentWebViewPackage().versionName).append("\n")
+                .append("Попыток выбора файла: ").append(chooserAttempt).append("\n\n");
         if (diagnosticEvents.isEmpty()) report.append("Событий пока нет.");
         else for (String event : diagnosticEvents) report.append(event).append('\\n');
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
@@ -101,7 +101,7 @@ public class PlatformWebActivity extends Activity {
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         Button diagnostics = new Button(this);
-        diagnostics.setText("Диагностика");
+        diagnostics.setText("Log");
         diagnostics.setAllCaps(false);
         diagnostics.setMinHeight(dp(48));
         diagnostics.setOnClickListener(v -> showDiagnostics());
@@ -307,6 +307,7 @@ public class PlatformWebActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == FILE_CHOOSER_REQUEST) {
+            recordDiagnostic("FILE_CHOOSER activity result received; resultCode=" + resultCode + ", dataPresent=" + (data != null));
             if (pendingFileChooser != null) {
                 Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
                 int count = results == null ? 0 : results.length;
@@ -321,6 +322,8 @@ public class PlatformWebActivity extends Activity {
                 }
                 pendingFileChooser.onReceiveValue(results);
                 pendingFileChooser = null;
+            } else {
+                recordDiagnostic("FILE_CHOOSER result arrived without pending callback");
             }
             return;
         }
