@@ -61,7 +61,7 @@ public class PlatformWebActivity extends Activity {
         back.setAllCaps(false);
         back.setOnClickListener(v -> finish());
         Button toggleComposer = new Button(this);
-        toggleComposer.setText("Скрыть ввод");
+        toggleComposer.setText("Показать ввод");
         toggleComposer.setAllCaps(false);
         toggleComposer.setMinHeight(dp(48));
         header.addView(toggleComposer, new LinearLayout.LayoutParams(-2, -2));
@@ -147,6 +147,9 @@ public class PlatformWebActivity extends Activity {
         sendParams.leftMargin = dp(8);
         composer.addView(send, sendParams);
         root.addView(composer, new LinearLayout.LayoutParams(-1, -2));
+        // Keep the native ChatGPT input unobstructed until the ORGANISM field is requested.
+        composer.setVisibility(View.GONE);
+        helper.setVisibility(View.GONE);
 
         toggleComposer.setOnClickListener(v -> {
             boolean currentlyVisible = composer.getVisibility() == View.VISIBLE;
