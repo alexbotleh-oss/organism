@@ -1,6 +1,7 @@
 package com.organism.app;
 
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.content.ClipData;
@@ -8,6 +9,7 @@ import android.content.ClipboardManager;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,6 +22,9 @@ import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.DownloadListener;
+import android.webkit.CookieManager;
+import android.webkit.URLUtil;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -138,7 +143,32 @@ public class PlatformWebActivity extends Activity {
         // Android grants access to user-selected content:// URIs. Keep file:// disabled.
         settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            handleWebDownload(url, userAgent, contentDisposition, mimeType, contentLength);
+        });
         webView.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                if (!request.isForMainFrame()) return false;
+                Uri uri = request.getUrl();
+                String scheme = uri == null ? "" : String.valueOf(uri.getScheme()).toLowerCase(Locale.ROOT);
+                String host = uri == null ? "" : uri.getHost();
+                if ("http".equals(scheme) || "https".equals(scheme)) {
+                    if (isEmbeddedWebHost(host)) return false;
+                    recordDiagnostic("WEB_LINK opening external browser scheme=" + scheme + " host=" + (host == null ? "unknown" : host));
+                    openExternalUrl(uri);
+                    return true;
+                }
+                if ("mailto".equals(scheme) || "tel".equals(scheme)) {
+                    recordDiagnostic("WEB_LINK opening external handler scheme=" + scheme);
+                    openExternalUrl(uri);
+                    return true;
+                }
+                if ("blob".equals(scheme) || "data".equals(scheme)) {
+                    recordDiagnostic("WEB_LINK unsupported navigation scheme=" + scheme);
+                    return true;
+                }
+                return false;
+            }
             @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 recordDiagnostic("WEBVIEW page started: " + safeHost(url));
             }
@@ -270,6 +300,68 @@ public class PlatformWebActivity extends Activity {
         root.requestApplyInsets();
         recordDiagnostic("ACTIVITY created; contentAccess=" + settings.getAllowContentAccess() + ", fileAccess=" + settings.getAllowFileAccess());
         webView.loadUrl("https://chatgpt.com/");
+    }
+
+    private boolean isEmbeddedWebHost(String host) {
+        if (host == null) return false;
+        String h = host.toLowerCase(Locale.ROOT);
+        return h.equals("chatgpt.com") || h.endsWith(".chatgpt.com")
+                || h.equals("chat.openai.com") || h.equals("auth.openai.com")
+                || h.endsWith(".auth.openai.com") || h.equals("accounts.google.com");
+    }
+
+    private void openExternalUrl(Uri uri) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addCategory(Intent.CATEGORY_BROWSABLE);
+            startActivity(intent);
+            recordDiagnostic("WEB_LINK external handler launched");
+        } catch (Exception e) {
+            recordDiagnostic("WEB_LINK external handler failed=" + e.getClass().getSimpleName());
+            Toast.makeText(this, "Не удалось открыть ссылку: " + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void handleWebDownload(String rawUrl, String userAgent, String contentDisposition,
+            String mimeType, long contentLength) {
+        Uri uri = Uri.parse(rawUrl);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        String host = uri.getHost();
+        recordDiagnostic("WEB_DOWNLOAD requested scheme=" + scheme + " host="
+                + (host == null ? "unknown" : host) + " mime=" + String.valueOf(mimeType)
+                + " bytes=" + contentLength);
+        if (!"https".equals(scheme) && !"http".equals(scheme)) {
+            recordDiagnostic("WEB_DOWNLOAD rejected unsupported scheme=" + scheme);
+            Toast.makeText(this, "Эту ссылку нельзя скачать напрямую из WebView. Откройте её в обычном браузере.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (manager == null) throw new IllegalStateException("DownloadManager unavailable");
+            String filename = URLUtil.guessFileName(rawUrl, contentDisposition, mimeType);
+            filename = filename.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+            if (filename.isEmpty() || ".".equals(filename) || "..".equals(filename)) filename = "organism-download";
+            DownloadManager.Request request = new DownloadManager.Request(uri)
+                    .setTitle(filename)
+                    .setDescription("Загрузка файла из ORGANISM Web")
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+                    .setAllowedOverMetered(true)
+                    .setAllowedOverRoaming(false);
+            if (mimeType != null && !mimeType.trim().isEmpty()) request.setMimeType(mimeType);
+            if (userAgent != null && !userAgent.trim().isEmpty()) request.addRequestHeader("User-Agent", userAgent);
+            String cookie = CookieManager.getInstance().getCookie(rawUrl);
+            if (cookie != null && !cookie.isEmpty()) request.addRequestHeader("Cookie", cookie);
+            if (uri.getScheme() != null && "https".equalsIgnoreCase(uri.getScheme())) {
+                request.addRequestHeader("Referer", "https://chatgpt.com/");
+            }
+            long id = manager.enqueue(request);
+            recordDiagnostic("WEB_DOWNLOAD enqueued id=" + id + " filename=" + filename);
+            Toast.makeText(this, "Загрузка началась. Результат будет в уведомлениях и папке «Загрузки».", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            recordDiagnostic("WEB_DOWNLOAD enqueue failed=" + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()));
+            Toast.makeText(this, "Не удалось начать загрузку: " + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void handleWebPermissionRequest(PermissionRequest request) {
