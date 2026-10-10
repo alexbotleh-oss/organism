@@ -333,3 +333,14 @@ This does not prove the root cause of the user's phone slowdown; no profiler tra
 - No use of global `WebView.pauseTimers()`; that could affect unrelated WebViews. No user data or site session was touched.
 - **Verification boundary:** no confirmed CI build or device test for the new source commit yet. Do not present the lifecycle patch as a proven performance fix until an APK built from this change is tested on the user's phone. WebView may retain native/renderer memory after destruction; the symptom may also originate in the browser, Android System WebView, ChatGPT page, or device memory pressure.
 - **Next action:** find the exact GitHub Actions run for source commit `1ca67afd8f12c47ee2a1dd57ef60268672de5f4b`; inspect job status and download a debug APK only if successful. Then test repeated open → hide composer → leave/close → use normal browser. If slowdown persists, gather device model/Android version and use a memory/renderer trace rather than changing experimental WebView flags blindly. Photo picker diagnosis remains a separate device-validation item.
+
+
+## 2026-10-10 — WebView composer follow-up
+
+Active blocker: reliable dialogue/capture between user, ChatGPT Web, and ORGANISM. Source commits: `7589a870abeab2c799b9010be49cc21f1a3d3210` hides the secondary composer by default; `b99ae679f996e47df8b2370bce1fa0f03b9cafee` collapses it and hides the keyboard after copying a prompt. Current source was read back.
+
+Existing manual round trip: `MainActivity.startPlatformWeb()` prepares a context-bearing prompt; user copies it, pastes/sends in ChatGPT Web, copies the answer, then uses `MainActivity.importPlatformWebAnswer()`. The response importer stores question and answer under the same turn/session IDs. Automatic send/receive is not implemented and must not be claimed.
+
+CI run `38028105547` passed only for prior SHA `70915b0bc66972247dc98aa522e11b8b3e655167`; current exact-head CI and device testing remain pending. No local DB, archives, cookies, history, credentials, or preferences were cleared.
+
+Next: locate CI for `b99ae679f996e47df8b2370bce1fa0f03b9cafee`; if green, test its APK on the existing installation: manual round trip, photo/document attachments, keyboard/touch reachability, and close/reopen responsiveness.
