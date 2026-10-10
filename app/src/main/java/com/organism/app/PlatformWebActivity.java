@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.net.Uri;
@@ -237,10 +238,15 @@ public class PlatformWebActivity extends Activity {
             pendingFileChooser = null;
         }
         if (webView != null) {
-            webView.stopLoading();
-            webView.setWebChromeClient(null);
-            webView.setWebViewClient(null);
-            webView.destroy();
+            WebView closingWebView = webView;
+            // Detach the heavy view from the Activity before releasing its native renderer bindings.
+            if (closingWebView.getParent() instanceof ViewGroup) {
+                ((ViewGroup) closingWebView.getParent()).removeView(closingWebView);
+            }
+            closingWebView.stopLoading();
+            closingWebView.setWebChromeClient(null);
+            closingWebView.setWebViewClient(null);
+            closingWebView.destroy();
             webView = null;
         }
         super.onDestroy();
