@@ -141,7 +141,16 @@ public class PlatformWebActivity extends Activity {
                 return;
             }
             clipboard.setPrimaryClip(ClipData.newPlainText("ORGANISM prompt", text));
-            Toast.makeText(this, "Текст скопирован. Вставь его в поле ChatGPT и отправь на сайте. Автоматическая отправка пока не реализована.", Toast.LENGTH_LONG).show();
+            // Collapse the helper field after copying so it cannot compete with ChatGPT's native composer.
+            composer.setVisibility(View.GONE);
+            helper.setVisibility(View.GONE);
+            toggleComposer.setText("Показать ввод");
+            input.clearFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) imm.hideSoftInputFromWindow(input.getWindowToken(), 0);
+            webView.requestFocus();
+            Toast.makeText(this, "Запрос скопирован. Вставьте его в поле ChatGPT и отправьте на сайте. Автоматическая отправка пока не реализована.", Toast.LENGTH_LONG).show();
         });
         LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(dp(112), dp(52));
         sendParams.leftMargin = dp(8);
