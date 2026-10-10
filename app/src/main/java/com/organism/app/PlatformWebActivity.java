@@ -46,14 +46,18 @@ public class PlatformWebActivity extends Activity {
     }
 
     private void showDiagnostics() {
+        String webViewVersion = "не определён";
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            android.content.pm.PackageInfo webViewPackage = android.webkit.WebView.getCurrentWebViewPackage();
+            if (webViewPackage != null) webViewVersion = webViewPackage.versionName;
+        }
         StringBuilder report = new StringBuilder("ORGANISM · диагностика вложений/WebView\n");
         report.append("Версия Android: ").append(android.os.Build.VERSION.RELEASE)
-                .append(" (SDK ").append(android.os.Build.VERSION.SDK_INT).append(")\\n")
-                .append("WebView: ").append(android.webkit.WebView.getCurrentWebViewPackage() == null
-                        ? "не определён" : android.webkit.WebView.getCurrentWebViewPackage().versionName).append("\n")
+                .append(" (SDK ").append(android.os.Build.VERSION.SDK_INT).append(")\n")
+                .append("WebView: ").append(webViewVersion).append("\n")
                 .append("Попыток выбора файла: ").append(chooserAttempt).append("\n\n");
         if (diagnosticEvents.isEmpty()) report.append("Событий пока нет.");
-        else for (String event : diagnosticEvents) report.append(event).append('\\n');
+        else for (String event : diagnosticEvents) report.append(event).append('\n');
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         TextView body = new TextView(this);
         body.setText(report.toString());
