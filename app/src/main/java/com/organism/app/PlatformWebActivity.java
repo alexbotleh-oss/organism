@@ -330,6 +330,17 @@ public class PlatformWebActivity extends Activity {
         recordDiagnostic("WEB_DOWNLOAD requested scheme=" + scheme + " host="
                 + (host == null ? "unknown" : host) + " mime=" + String.valueOf(mimeType)
                 + " bytes=" + contentLength);
+        // ChatGPT file downloads may rely on the website download/filename flow.
+        // DownloadManager saved this device test as content.bin, while the same file
+        // downloaded correctly in the ordinary browser. Delegate ChatGPT downloads
+        // to the browser instead of saving an unverified generic payload.
+        if ("chatgpt.com".equalsIgnoreCase(host)
+                || (host != null && host.toLowerCase(Locale.ROOT).endsWith(".chatgpt.com"))) {
+            recordDiagnostic("WEB_DOWNLOAD delegating ChatGPT download to external browser");
+            openExternalUrl(uri);
+            Toast.makeText(this, "Открываю загрузку ChatGPT в обычном браузере.", Toast.LENGTH_LONG).show();
+            return;
+        }
         if (!"https".equals(scheme) && !"http".equals(scheme)) {
             recordDiagnostic("WEB_DOWNLOAD rejected unsupported scheme=" + scheme);
             Toast.makeText(this, "Эту ссылку нельзя скачать напрямую из WebView. Откройте её в обычном браузере.", Toast.LENGTH_LONG).show();
