@@ -328,3 +328,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** APK retrieval only. No app database, imported archive, credentials, preferences, or user data were modified.
 - **Status:** APK recovered and checksum verified; device-level release gate remains PARTIAL.
 - **Next action:** install over the existing app without clearing storage; verify launch, existing archive/session retention, WebView top/bottom safe areas with keyboard open, and attachment picker. Report any visible defect before calling it release-ready.
+
+
+## 2026-10-10 — WL-027 — WebView attachment and overlapping composer investigation
+
+- **Lifecycle:** INVESTIGATION; implementation and device verification pending.
+- **User goal:** Preserve ORGANISM's in-app WebView and its planned control path, while fixing image attachment failures, UI lag/overlap, and touch conflicts between the ORGANISM composer and ChatGPT's native composer.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`; previously verified app-source SHA `08cb9dafdbc2eae918808886adfa310b178d5a6e`; current source file `app/src/main/java/com/organism/app/PlatformWebActivity.java` blob SHA `eb8c7810dc4905ced2b0dbcb6c17dfed3c89384f`. Latest known APK is a CI debug build only; not device-verified.
+- **Observed device evidence (user screenshots):** ChatGPT's native composer is visible alongside a second fixed ORGANISM composer; site content and consent dialog compete with the fixed panel; some site controls are hard to reach. User reports a document attached successfully but a photo did not. This suggests a format/path-specific attachment issue but does not establish the exact failure point.
+- **Source inspection:** `PlatformWebActivity` has a `WebChromeClient.onShowFileChooser` handler and returns `FileChooserParams.parseResult(...)` to the pending callback. It sets `WebSettings.setAllowContentAccess(false)`. The latter is a plausible reason selected `content://` URIs cannot be consumed by the WebView, but it is not yet confirmed by a device trace. The ORGANISM button only copies text to clipboard; it does not send messages or upload files.
+- **Plan:** (1) allow only Android's explicitly selected content URIs through the WebView content provider path while keeping `file://` access disabled; (2) add file chooser cancellation/error diagnostics without logging sensitive paths; (3) redesign the ORGANISM composer as a collapsible/secondary control so the native ChatGPT composer remains unobstructed by default; (4) preserve a deliberate entry point for ORGANISM-prepared prompts and future approved automation; (5) build and install over the existing app, then test image/document attachment, cancellation, keyboard, cookie dialog, touch reachability, scrolling and responsiveness.
+- **Safety/data:** no user data, app database, imported archive, credentials or preferences were modified during this investigation.
+- **Verification:** source inspection and screenshots only. No code fix, CI build for a fix, or device confirmation is claimed by this entry.
+- **Next step:** implement the narrow content-URI fix and responsive composer redesign; run CI and update this log/handoff with the exact resulting commit and artifact before requesting device validation.
