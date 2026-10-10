@@ -412,3 +412,17 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no app data, database, imported archive, credentials, browser session, or preferences changed during this inspection.
 - **Status:** OPEN / NOT FIXED / NOT DEVICE-VERIFIED.
 - **Next action:** establish the exact failure point with the user, then make the narrowest evidence-based fix; build the exact commit and test on the phone before marking resolved.
+
+
+## 2026-10-10 — WL-035 — Add in-app diagnostics for screenshot/file attachment failures
+
+- **Lifecycle:** CHANGED / awaiting exact-commit CI and physical-device verification.
+- **User correction/requirement:** the user objected to guessing by trial and error and expects useful diagnostics to be added to ORGANISM so the failure can be located from evidence. Treat diagnostic instrumentation as the default response to recurring or unclear technical failures, not as an optional afterthought.
+- **Baseline:** branch `fix/oauth-diagnostic-trace-20261009`; prior source commit `8cc10e40aeca59533527188eea24f80fae73b67f`; the existing file chooser had no trace of chooser request/result beyond a toast if launching threw. Selected content URI access was already enabled.
+- **Changes:** `PlatformWebActivity.java` now has an in-app `Log` control opening a diagnostics report and copy action. A bounded in-memory event buffer (max 80 events) and Android Log tag `ORGANISM-WebDiag` record WebView page start/finish by host only, main-frame load errors, file chooser request/mode/accepted MIME patterns, picker launch/launch exception, activity result/cancel/empty URI count, selected MIME type, missing callback, and cancellation on Activity destruction. Report includes Android and WebView versions where supported. It deliberately does not record selected URI strings or file contents. `file://` remains disabled; no broad storage permission was added.
+- **Source commits:** `e2b8f86695fe1745235abe6c9d6041644ae2ee56` adds instrumentation; `db70f8189e63cf63e9b389eaeeacc63e6dbcd0cf` attempted compatibility/report hardening; `6fe2a5716fc87cb425b8a8d159aca88f6ded1eec` finalizes report formatting and guards WebView version lookup on Android API < 26.
+- **Important limit:** these events can tell us whether the chooser is requested/launched and whether Android returns a URI/MIME. They cannot by themselves prove ChatGPT's JavaScript accepted the URI, generated an attachment preview, or uploaded it; those stages still require on-device observation and possibly further safe WebView/network error instrumentation.
+- **Verification:** source write returned commits; exact-source read-back and CI are required next. No build success or device behavior is claimed yet. No physical-device test was run in this stage.
+- **Data safety:** no app database, user content, archive, browser cookies/history, credentials, or preferences changed. Diagnostic buffer is volatile and bounded; report omits file URI/path and content.
+- **Status:** PARTIAL / NOT RELEASE-VERIFIED.
+- **Next:** read back source and both docs, run CI for the exact latest app-source commit, retrieve that exact debug APK only if successful, then on the existing installation select a screenshot and copy the report. Use the evidence to fix the failing stage; also test document selection and picker cancellation. Do not clear user data.
