@@ -364,3 +364,16 @@ Entries are append-only. Newest entries are added at the end. See [WORKLOG_AND_C
 - **Data safety:** no app data, cookies, history, archives, or credentials cleared or modified.
 - **Verification:** source patch committed; no CI result or device test claimed yet.
 - **Next:** run the Android CI workflow for this exact commit; if successful, distribute the resulting debug APK and test repeated WebView open/close, native browser responsiveness, photo/document attachments, and composer toggle on the user's device. If slowdown persists, collect Android Studio/Perfetto or `dumpsys meminfo` evidence rather than guessing.
+
+
+## 2026-10-10 — WL-031 — Suspend embedded WebView when ORGANISM is backgrounded
+
+- **Lifecycle:** STARTED → CHANGED; CI/device verification pending.
+- **User goal:** reduce the reported lingering phone/browser slowdown after leaving or closing ORGANISM's embedded ChatGPT view.
+- **Starting point:** branch `fix/oauth-diagnostic-trace-20261009`; source baseline `39a63b2c9791e1eec0e80578b2720200b3cea9eaf`; current branch head before this change `7faa1ca42be4cefbaf3b6f3b793b03515508a992`. Existing `onDestroy()` detaches, stops, and destroys WebView; composer toggle already exists; `setAllowContentAccess(true)` already allows user-selected `content://` URIs while `file://` remains disabled.
+- **Change:** `PlatformWebActivity.onPause()` now calls the instance-scoped `webView.onPause()`, and `onResume()` restores it with `webView.onResume()`. This avoids using `WebView.pauseTimers()`, which is global and could affect unrelated WebViews. Source commit: `1ca67afd8f12c47ee2a1dd57ef60268672de5f4b`.
+- **Rationale / limits:** this is a narrow lifecycle improvement intended to suspend WebView work while the Activity is backgrounded. It does not prove the renderer is the cause of device-wide slowdown, and it cannot guarantee that all Chromium/native memory is immediately returned. The existing teardown fix remains in place.
+- **Verification:** source was read from GitHub before editing and updated through the Contents API. No CI result or physical-device test is yet confirmed for this exact source commit. The prior wrapper's empty workflow-run response is not evidence of a failed build; query Actions directly and inspect exact-run jobs/artifacts.
+- **Data safety:** no application data, database, cookies, browsing history, or imported archive was changed. Reversible source-only change.
+- **Status:** PARTIAL / NOT DEVICE-TESTED.
+- **Next action:** inspect exact-commit CI and obtain a debug APK only if the build succeeds; then compare ordinary-browser responsiveness after opening/closing the embedded view. Separately investigate photo attachment with a device test; do not log selected file URIs or contents.
