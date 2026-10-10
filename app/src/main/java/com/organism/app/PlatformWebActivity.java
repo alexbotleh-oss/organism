@@ -227,6 +227,17 @@ public class PlatformWebActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
     }
 
+    @Override protected void onPause() {
+        // Suspend this WebView while its Activity is backgrounded without affecting other WebViews.
+        if (webView != null) webView.onPause();
+        super.onPause();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.onResume();
+    }
+
     @Override public void onBackPressed() {
         if (webView != null && webView.canGoBack()) webView.goBack();
         else super.onBackPressed();
